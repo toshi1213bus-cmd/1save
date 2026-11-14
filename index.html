@@ -45,36 +45,32 @@
         </button>
     </div>
 
-    <!-- 部位別推移（縦1列・だしっぱなし） -->
+    <!-- 基本種目スリム推移カード -->
     <div class="space-y-3">
-        <h2 class="text-sm font-semibold text-gray-400 uppercase tracking-wider">部位別推移</h2>
+        <h2 class="text-sm font-semibold text-gray-400 uppercase tracking-wider">基本種目推移</h2>
         <div class="space-y-2">
             <!-- PUSH -->
-            <div class="bg-gray-800 border border-gray-700 rounded-xl p-3 shadow space-y-1">
-                <div class="text-xs font-bold text-orange-400">PUSH (ベンチプレス)</div>
+            <div class="bg-gray-800 border border-gray-700 rounded-xl p-3 shadow space-y-0.5">
                 <div id="pickupPush" class="space-y-0.5 text-xs">
-                    <div class="text-gray-400">データなし</div>
+                    <div class="text-gray-400">PUSH (ベンチプレス) : データなし</div>
                 </div>
             </div>
             <!-- PULL -->
-            <div class="bg-gray-800 border border-gray-700 rounded-xl p-3 shadow space-y-1">
-                <div class="text-xs font-bold text-orange-400">PULL (ワイドラット)</div>
+            <div class="bg-gray-800 border border-gray-700 rounded-xl p-3 shadow space-y-0.5">
                 <div id="pickupPull" class="space-y-0.5 text-xs">
-                    <div class="text-gray-400">データなし</div>
+                    <div class="text-gray-400">PULL (ワイドラット) : データなし</div>
                 </div>
             </div>
             <!-- LEGS -->
-            <div class="bg-gray-800 border border-gray-700 rounded-xl p-3 shadow space-y-1">
-                <div class="text-xs font-bold text-orange-400">LEGS (ブルガリアン)</div>
+            <div class="bg-gray-800 border border-gray-700 rounded-xl p-3 shadow space-y-0.5">
                 <div id="pickupLegs" class="space-y-0.5 text-xs">
-                    <div class="text-gray-400">データなし</div>
+                    <div class="text-gray-400">LEGS (ブルガリアン) : データなし</div>
                 </div>
             </div>
             <!-- OTHER -->
-            <div class="bg-gray-800 border border-gray-700 rounded-xl p-3 shadow space-y-1">
-                <div class="text-xs font-bold text-orange-400">OTHER (レッグレイズ)</div>
+            <div class="bg-gray-800 border border-gray-700 rounded-xl p-3 shadow space-y-0.5">
                 <div id="pickupOther" class="space-y-0.5 text-xs">
-                    <div class="text-gray-400">データなし</div>
+                    <div class="text-gray-400">OTHER (レッグレイズ) : データなし</div>
                 </div>
             </div>
         </div>
@@ -148,6 +144,7 @@
         let workouts = sanitizeWorkouts(JSON.parse(localStorage.getItem('simple_workouts')) || []);
         let dayPplMap = JSON.parse(localStorage.getItem('simple_day_ppl')) || {};
         let editingId = null;
+        let visibleDaysCount = 5; // 初期表示は最新5日分
 
         function addSetRow(w = '', r = '') {
             const container = document.getElementById('setsContainer');
@@ -254,10 +251,10 @@
 
         function updatePickupStats() {
             const targets = {
-                pickupPush: { name: 'ベンチプレス', type: 'weight' },
-                pickupPull: { name: 'ワイドラットプル', type: 'weight' },
-                pickupLegs: { name: 'ブルガリアンスクワット', type: 'weight' },
-                pickupOther: { name: 'レッグレイズ', type: 'reps' }
+                pickupPush: { label: 'PUSH最新負荷量', name: 'ベンチプレス', type: 'weight' },
+                pickupPull: { label: 'PULL最新負荷量', name: 'ワイドラットプル', type: 'weight' },
+                pickupLegs: { label: 'LEGS最新負荷量', name: 'ブルガリアンスクワット', type: 'weight' },
+                pickupOther: { label: 'OTHER最新回数', name: 'レッグレイズ', type: 'reps' }
             };
 
             for (const [elemId, config] of Object.entries(targets)) {
@@ -267,7 +264,7 @@
                 const matchedItems = workouts.filter(item => item.name.trim() === config.name);
 
                 if (matchedItems.length === 0) {
-                    container.innerHTML = `<div class="text-gray-500">「${config.name}」の記録なし</div>`;
+                    container.innerHTML = `<div class="text-gray-400 text-[11px]">${config.label.slice(0,4)} (${config.name}) : データなし</div>`;
                     continue;
                 }
 
@@ -303,7 +300,7 @@
                 const trendStr = values.join(' ➔ ');
 
                 container.innerHTML = `
-                    <div class="text-orange-300 font-bold">最新負荷量：${latestVal}${config.type === 'weight' ? '' : '回'}</div>
+                    <div class="text-orange-300 font-bold">${config.label}：${latestVal}${config.type === 'weight' ? 'kg' : '回'}</div>
                     <div class="text-gray-400 font-mono text-[11px] break-all">推移：${trendStr}</div>
                 `;
             }
@@ -328,8 +325,9 @@
             });
 
             const sortedDates = Object.keys(grouped).sort((a, b) => new Date(b) - new Date(a));
+            const displayDates = sortedDates.slice(0, visibleDaysCount);
 
-            sortedDates.forEach(dateStr => {
+            displayDates.forEach(dateStr => {
                 const dayItems = grouped[dateStr];
                 
                 let totalVolume = 0;
@@ -396,7 +394,22 @@
                 list.appendChild(card);
             });
 
+            // 6日分以上ある場合は「＋」ボタンを表示
+            if (sortedDates.length > visibleDaysCount) {
+                const moreBtn = document.createElement('button');
+                moreBtn.type = 'button';
+                moreBtn.onclick = loadMoreDays;
+                moreBtn.className = 'w-full py-3 bg-gray-800 hover:bg-gray-700 text-orange-400 text-sm font-bold rounded-xl border border-gray-700 shadow transition active:scale-[0.98]';
+                moreBtn.textContent = '＋ さらに過去の履歴を表示';
+                list.appendChild(moreBtn);
+            }
+
             updatePickupStats();
+        }
+
+        function loadMoreDays() {
+            visibleDaysCount += 5;
+            renderWorkouts();
         }
 
         function toggleDayAccordion(headerElem) {
