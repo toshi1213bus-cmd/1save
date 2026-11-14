@@ -300,7 +300,7 @@
                 const trendStr = values.join(' ➔ ');
 
                 container.innerHTML = `
-                    <div class="text-orange-300 font-bold">${config.label}：${latestVal}${config.type === 'weight' ? 'kg' : '回'}</div>
+                    <div class="text-orange-300 font-bold">${config.label}：${latestVal}${config.type === 'weight' ? '' : '回'}</div>
                     <div class="text-gray-400 font-mono text-[11px] break-all">推移：${trendStr}</div>
                 `;
             }
