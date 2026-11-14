@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PPL</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <meta name="theme-color" content="#111827">
+</head>
+<body class="bg-gray-900 text-gray-100 min-h-screen p-4 pb-24 max-w-md mx-auto space-y-6">
+
+    <!-- 入力フォーム -->
+    <div class="bg-gray-800 border border-gray-700 rounded-2xl p-4 shadow-lg space-y-4">
+        <div class="flex justify-between items-center">
+            <h2 id="formTitle" class="text-sm font-semibold text-orange-400 uppercase tracking-wider">トレーニング記録</h2>
+            <button type="button" id="cancelEditBtn" onclick="cancelEdit()" class="text-xs text-gray-400 hover:text-white hidden">キャンセル</button>
+        </div>
+        
+        <div>
+            <label class="block text-xs text-gray-400 mb-1">種目名</label>
+            <input type="text" id="exerciseName" placeholder="入力" 
+                class="w-full bg-gray-900 border border-gray-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-orange-500">
+        </div>
+
+        <div class="space-y-2">
+            <span class="block text-xs text-gray-400">セット</span>
+            <div id="setsContainer" class="space-y-2">
+                <div class="set-row flex items-center gap-2">
+                    <span class="set-label text-xs font-bold text-gray-400 w-6 text-center">1.</span>
+                    <input type="number" step="0.5" placeholder="kg" inputmode="decimal" autocapitalize="off" autocomplete="off" autocorrect="off"
+                        class="weight-input w-full bg-gray-900 border border-gray-700 rounded-xl px-3 py-2.5 text-white text-center focus:outline-none focus:border-orange-500">
+                    <span class="text-gray-500 font-bold">×</span>
+                    <input type="number" placeholder="回" inputmode="numeric" autocapitalize="off" autocomplete="off" autocorrect="off"
+                        class="reps-input w-full bg-gray-900 border border-gray-700 rounded-xl px-3 py-2.5 text-white text-center focus:outline-none focus:border-orange-500">
+                    <button type="button" onclick="removeSetRow(this)" style="visibility: hidden;" class="text-gray-500 hover:text-red-400 p-2">✕</button>
+                </div>
+            </div>
+            <button type="button" onclick="addSetRow()" class="w-full py-2.5 border border-dashed border-gray-600 hover:border-orange-400 text-gray-300 hover:text-orange-400 rounded-xl text-sm font-medium transition">
+                ＋ セット
+            </button>
+        </div>
+
+        <button type="button" id="saveBtn" onclick="saveWorkout()" class="w-full bg-orange-500 hover:bg-orange-600 text-white font-bold py-3.5 rounded-xl shadow-md transition active:scale-[0.98]">
+            保存
+        </button>
+    </div>
+
+    <!-- 部位別ピックアップ推移カード -->
+    <div class="space-y-3">
+        <h2 class="text-sm font-semibold text-gray-400 uppercase tracking-wider">部位別ピックアップ推移</h2>
+        <div class="grid grid-cols-2 gap-2">
+            <!-- PUSH -->
+            <div class="bg-gray-800 border border-gray-700 rounded-xl p-3 shadow">
+                <div class="flex justify-between items-center cursor-pointer select-none" onclick="togglePickupAccordion(this)">
+                    <span class="text-xs font-bold text-orange-400">PUSH (ベンチプレス)</span>
+                    <span class="text-xs text-gray-500 pickup-toggle-icon">▼</span>
+                </div>
+                <div class="pickup-content hidden mt-2 pt-2 border-t border-gray-700 space-y-1 text-xs" id="pickupPush">
+                    <div class="text-gray-400">データなし</div>
+                </div>
+            </div>
+            <!-- PULL -->
+            <div class="bg-gray-800 border border-gray-700 rounded-xl p-3 shadow">
+                <div class="flex justify-between items-center cursor-pointer select-none" onclick="togglePickupAccordion(this)">
+                    <span class="text-xs font-bold text-orange-400">PULL (ワイドラット)</span>
+                    <span class="text-xs text-gray-500 pickup-toggle-icon">▼</span>
+                </div>
+                <div class="pickup-content hidden mt-2 pt-2 border-t border-gray-700 space-y-1 text-xs" id="pickupPull">
+                    <div class="text-gray-400">データなし</div>
+                </div>
+            </div>
+            <!-- LEGS -->
+            <div class="bg-gray-800 border border-gray-700 rounded-xl p-3 shadow">
+                <div class="flex justify-between items-center cursor-pointer select-none" onclick="togglePickupAccordion(this)">
+                    <span class="text-xs font-bold text-orange-400">LEGS (ブルガリアン)</span>
+                    <span class="text-xs text-gray-500 pickup-toggle-icon">▼</span>
+                </div>
+                <div class="pickup-content hidden mt-2 pt-2 border-t border-gray-700 space-y-1 text-xs" id="pickupLegs">
+                    <div class="text-gray-400">データなし</div>
+                </div>
+            </div>
+            <!-- OTHER -->
+            <div class="bg-gray-800 border border-gray-700 rounded-xl p-3 shadow">
+                <div class="flex justify-between items-center cursor-pointer select-none" onclick="togglePickupAccordion(this)">
+                    <span class="text-xs font-bold text-orange-400">OTHER (レッグレイズ)</span>
+                    <span class="text-xs text-gray-500 pickup-toggle-icon">▼</span>
+                </div>
+                <div class="pickup-content hidden mt-2 pt-2 border-t border-gray-700 space-y-1 text-xs" id="pickupOther">
+                    <div class="text-gray-400">データなし</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 履歴一覧 -->
+    <div class="space-y-4">
+        <h2 class="text-sm font-semibold text-gray-400 uppercase tracking-wider">履歴（タップ開閉）</h2>
+        <div id="workoutList" class="space-y-3"></div>
+        <div id="emptyMessage" class="text-center text-gray-500 py-10 hidden">
+            記録がまだありません。
+        </div>
+    </div>
+
+    <!-- 画面最下部の設定アコーディオン -->
+    <div class="pt-6">
+        <div class="bg-gray-800/50 border border-gray-800 rounded-2xl p-3">
+            <div class="flex justify-between items-center cursor-pointer select-none px-2 py-1" onclick="toggleSettingsAccordion(this)">
+                <span class="text-xs text-gray-500 font-medium">設定</span>
+                <span class="text-xs text-gray-600 settings-toggle-icon">▼</span>
+            </div>
+            <div class="settings-content hidden mt-3 pt-3 border-t border-gray-800 flex gap-2">
+                <button type="button" onclick="exportData()" class="flex-1 text-xs bg-gray-800 hover:bg-gray-700 text-gray-300 py-2.5 rounded-xl border border-gray-700 font-medium">
+                    出力 (JSON)
+                </button>
+                <label class="flex-1 text-xs bg-gray-800 hover:bg-gray-700 text-gray-300 py-2.5 rounded-xl border border-gray-700 text-center font-medium cursor-pointer">
+                    復元
+                    <input type="file" id="importFile" class="hidden" accept=".json" onchange="importData(event)">
+                </label>
+            </div>
+        </div>
+    </div>
+
+    <!-- スクリプト前半 -->
+    <script>
+        function sanitizeWorkouts(rawWorkouts) {
+            if (!Array.isArray(rawWorkouts)) return [];
+            const uniqueMap = new Map();
+
+            rawWorkouts.forEach(item => {
+                if (!item || typeof item !== 'object') return;
+                const id = item.id || String(Date.now() + Math.random());
+                
+                let setList = [];
+                const rawSets = item.setList || [];
+                if (Array.isArray(rawSets)) {
+                    setList = rawSets.map(set => {
+                        let w = set.weight !== undefined ? set.weight : (set.体重 !== undefined ? set.体重 : 0);
+                        let r = set.reps !== undefined ? set.reps : (set.回数 !== undefined ? set.回数 : 0);
+                        return {
+                            weight: Number(w) || 0,
+                            reps: Number(r) || 0
+                        };
+                    });
+                }
+
+                let name = item.name || item.名前 || '不明な種目';
+                let dateStr = item.dateStr || '2026-01-01';
+
+                uniqueMap.set(id, {
+                    id: String(id),
+                    name: String(name),
+                    dateStr: String(dateStr),
+                    setList: setList
+                });
+            });
+
+            return Array.from(uniqueMap.values());
+        }
+
+        let workouts = sanitizeWorkouts(JSON.parse(localStorage.getItem('simple_workouts')) || []);
+        let dayPplMap = JSON.parse(localStorage.getItem('simple_day_ppl')) || {};
+        let editingId = null;
+
+        function addSetRow(w = '', r = '') {
+            const container = document.getElementById('setsContainer');
+            if (!container) return;
+            const rows = container.querySelectorAll('.set-row');
+            const num = rows.length + 1;
+
+            if (w === '' && rows.length > 0) {
+                const lastW = rows[rows.length - 1].querySelector('.weight-input').value;
+                if (lastW) w = lastW;
+            }
+
+            const div = document.createElement('div');
+            div.className = 'set-row flex items-center gap-2';
+            div.innerHTML = `
+                <span class="set-label text-xs font-bold text-gray-400 w-6 text-center">${num}.</span>
+                <input type="number" step="0.5" placeholder="kg" value="${w}" inputmode="decimal" autocapitalize="off" autocomplete="off" autocorrect="off"
+                    class="weight-input w-full bg-gray-900 border border-gray-700 rounded-xl px-3 py-2.5 text-white text-center focus:outline-none focus:border-orange-500">
+                <span class="text-gray-500 font-bold">×</span>
+                <input type="number" placeholder="回" value="${r}" inputmode="numeric" autocapitalize="off" autocomplete="off" autocorrect="off"
+                    class="reps-input w-full bg-gray-900 border border-gray-700 rounded-xl px-3 py-2.5 text-white text-center focus:outline-none focus:border-orange-500">
+                <button type="button" onclick="removeSetRow(this)" class="text-gray-500 hover:text-red-400 p-2">✕</button>
+            `;
+            container.appendChild(div);
+            updateNums();
+        }
+
+        function removeSetRow(btn) {
+            const container = document.getElementById('setsContainer');
+            if (!container) return;
+            const rows = container.querySelectorAll('.set-row');
+            if (rows.length <= 1) return;
+            btn.closest('.set-row').remove();
+            updateNums();
+        }
+
+        function updateNums() {
+            const rows = document.querySelectorAll('.set-row');
+            rows.forEach((row, idx) => {
+                row.querySelector('.set-label').textContent = `${idx + 1}.`;
+                const delBtn = row.querySelector('button');
+                delBtn.style.visibility = rows.length === 1 ? 'hidden' : 'visible';
+            });
+        }
+
+        function resetForm() {
+            editingId = null;
+            document.getElementById('exerciseName').value = '';
+            document.getElementById('formTitle').textContent = 'トレーニング記録';
+            document.getElementById('saveBtn').textContent = '保存';
+            document.getElementById('cancelEditBtn').classList.add('hidden');
+            
+            const container = document.getElementById('setsContainer');
+            if (!container) return;
+            container.innerHTML = `
+                <div class="set-row flex items-center gap-2">
+                    <span class="set-label text-xs font-bold text-gray-400 w-6 text-center">1.</span>
+                    <input type="number" step="0.5" placeholder="kg" inputmode="decimal" autocapitalize="off" autocomplete="off" autocorrect="off"
+                        class="weight-input w-full bg-gray-900 border border-gray-700 rounded-xl px-3 py-2.5 text-white text-center focus:outline-none focus:border-orange-500">
+                    <span class="text-gray-500 font-bold">×</span>
+                    <input type="number" placeholder="回" inputmode="numeric" autocapitalize="off" autocomplete="off" autocorrect="off"
+                        class="reps-input w-full bg-gray-900 border border-gray-700 rounded-xl px-3 py-2.5 text-white text-center focus:outline-none focus:border-orange-500">
+                    <button type="button" onclick="removeSetRow(this)" style="visibility: hidden;" class="text-gray-500 hover:text-red-400 p-2">✕</button>
+                </div>
+            `;
+        }
+
+        function cancelEdit() {
+            resetForm();
+        }
+
+        function editWorkout(id) {
+            const target = workouts.find(i => i.id === id);
+            if (!target) return;
+
+            editingId = id;
+            document.getElementById('formTitle').textContent = 'トレーニング記録（編集中）';
+            document.getElementById('saveBtn').textContent = '更新';
+            document.getElementById('cancelEditBtn').classList.remove('hidden');
+            
+            document.getElementById('exerciseName').value = target.name;
+
+            const container = document.getElementById('setsContainer');
+            container.innerHTML = '';
+            target.setList.forEach(set => {
+                addSetRow(set.weight, set.reps);
+            });
+
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+            document.getElementById('exerciseName').focus();
+        }
+
+        function formatDate(dateStr) {
+            const [y, m, d] = dateStr.split('-');
+            const date = new Date(y, m - 1, d);
+            const w = ['日', '月', '火', '水', '木', '金', '土'][date.getDay()];
+            return `${y}/${parseInt(m)}/${parseInt(d)} (${w})`;
+        }
+
+        function updateDayPpl(dateStr, selectElem) {
+            dayPplMap[dateStr] = selectElem.value;
+            localStorage.setItem('simple_day_ppl', JSON.stringify(dayPplMap));
+        }
+
+        function updatePickupStats() {
+            const targets = {
+                pickupPush: { name: 'ベンチプレス', type: 'weight' },
+                pickupPull: { name: 'ワイドラットプル', type: 'weight' },
+                pickupLegs: { name: 'ブルガリアンスクワット', type: 'weight' },
+                pickupOther: { name: 'レッグレイズ', type: 'reps' }
+            };
+
+            for (const [elemId, config] of Object.entries(targets)) {
+                const container = document.getElementById(elemId);
+                if (!container) continue;
+
+                const matchedItems = workouts.filter(item => item.name.trim() === config.name);
+
+                if (matchedItems.length === 0) {
+                    container.innerHTML = `<div class="text-gray-500">「${config.name}」の記録なし</div>`;
+                    continue;
+                }
+
+                const dateMap = {};
+                matchedItems.forEach(item => {
+                    if (!dateMap[item.dateStr]) dateMap[item.dateStr] = [];
+                    dateMap[item.dateStr].push(...item.setList);
+                });
+
+                const sortedDates = Object.keys(dateMap).sort((a, b) => new Date(a) - new Date(b));
+
+                const values = sortedDates.map(dateStr => {
+                    const sets = dateMap[dateStr];
+                    if (config.type === 'weight') {
+                        let maxW = -1;
+                        let maxR = 0;
+                        sets.forEach(s => {
+                            if (s.weight > maxW) {
+                                maxW = s.weight;
+                                maxR = s.reps;
+                            } else if (s.weight === maxW && s.reps > maxR) {
+                                maxR = s.reps;
+                            }
+                        });
+                        return Number((maxW + (maxR * 0.1)).toFixed(1));
+                    } else {
+                        const totalReps = sets.reduce((sum, s) => sum + s.reps, 0);
+                        return totalReps;
+                    }
+                });
+
+                const latestVal = values[values.length - 1];
+                const trendStr = values.join(' ➔ ');
+
+                container.innerHTML = `
+                    <div class="text-orange-300 font-bold">最新負荷量：${latestVal}${config.type === 'weight' ? '' : '回'}</div>
+                    <div class="text-gray-400 font-mono text-[11px] break-all">推移：${trendStr}</div>
+                `;
+            }
+        }
+        function renderWorkouts() {
+            const list = document.getElementById('workoutList');
+            const empty = document.getElementById('emptyMessage');
+            if (!list) return;
+            list.innerHTML = '';
+
+            if (workouts.length === 0) {
+                if (empty) empty.classList.remove('hidden');
+                updatePickupStats();
+                return;
+            }
+            if (empty) empty.classList.add('hidden');
+
+            const grouped = {};
+            workouts.forEach(item => {
+                if (!grouped[item.dateStr]) grouped[item.dateStr] = [];
+                grouped[item.dateStr].push(item);
+            });
+
+            const sortedDates = Object.keys(grouped).sort((a, b) => new Date(b) - new Date(a));
+
+            sortedDates.forEach(dateStr => {
+                const dayItems = grouped[dateStr];
+                
+                let totalVolume = 0;
+                dayItems.forEach(item => {
+                    item.setList.forEach(set => {
+                        totalVolume += (set.weight * set.reps);
+                    });
+                });
+                const formattedVolume = Math.round(totalVolume).toLocaleString();
+
+                const currentPpl = dayPplMap[dateStr] || 'PUSH';
+
+                const card = document.createElement('div');
+                card.className = 'bg-gray-800 border border-gray-700 rounded-2xl p-4 shadow';
+
+                let header = `
+                    <div class="flex justify-between items-center cursor-pointer select-none" onclick="toggleDayAccordion(this)">
+                        <div class="flex items-center gap-2 flex-wrap">
+                            <span class="text-sm font-bold text-orange-400">📅 ${formatDate(dateStr)}</span>
+                            <span class="text-xs bg-gray-900 border border-gray-700 text-gray-300 px-2 py-0.5 rounded-lg font-mono">総負荷: ${formattedVolume}kg</span>
+                            <select onclick="event.stopPropagation()" onchange="updateDayPpl('${dateStr}', this)" class="text-xs bg-gray-900 border border-gray-700 text-orange-300 font-bold rounded-lg px-2 py-1 focus:outline-none focus:border-orange-500">
+                                <option value="PUSH" ${currentPpl === 'PUSH' ? 'selected' : ''}>PUSH</option>
+                                <option value="PULL" ${currentPpl === 'PULL' ? 'selected' : ''}>PULL</option>
+                                <option value="LEGS" ${currentPpl === 'LEGS' ? 'selected' : ''}>LEGS</option>
+                                <option value="OTHER" ${currentPpl === 'OTHER' ? 'selected' : ''}>OTHER</option>
+                            </select>
+                        </div>
+                        <span class="text-xs text-gray-400 day-toggle-icon">▼</span>
+                    </div>
+                `;
+
+                let body = '<div class="day-content hidden mt-3 pt-3 border-t border-gray-700 space-y-2">';
+                dayItems.forEach(item => {
+                    const setsHtml = item.setList.map((s, idx) => `
+                        <div class="text-xs text-gray-300 font-semibold flex items-center gap-2">
+                            <span class="text-gray-500 w-4">${idx + 1}.</span>
+                            <span class="text-orange-300">${s.weight} kg</span> × 
+                            <span class="text-orange-300">${s.reps} 回</span>
+                        </div>
+                    `).join('');
+
+                    body += `
+                        <div class="bg-gray-900 border border-gray-700 rounded-xl p-3">
+                            <div class="flex justify-between items-center cursor-pointer select-none" onclick="toggleExerciseAccordion(this)">
+                                <div class="flex items-center gap-2">
+                                    <span class="text-sm font-bold text-white">${escapeHtml(item.name)}</span>
+                                    <span class="text-xs text-gray-500">(${item.setList.length}セット)</span>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <span class="text-xs text-orange-400 ex-toggle-icon">▼</span>
+                                    <button type="button" onclick="event.stopPropagation(); editWorkout('${item.id}')" class="text-xs text-gray-400 hover:text-orange-400 px-2 py-1 bg-gray-800 border border-gray-700 rounded-lg font-medium" title="編集">編集</button>
+                                    <button type="button" onclick="event.stopPropagation(); deleteWorkout('${item.id}')" class="text-gray-500 hover:text-red-400 p-1" title="削除">✕</button>
+                                </div>
+                            </div>
+                            <div class="ex-content hidden mt-2 pt-2 border-t border-gray-800 space-y-1">
+                                ${setsHtml}
+                            </div>
+                        </div>
+                    `;
+                });
+                body += '</div>';
+
+                card.innerHTML = header + body;
+                list.appendChild(card);
+            });
+
+            updatePickupStats();
+        }
+
+        function toggleDayAccordion(headerElem) {
+            const content = headerElem.nextElementSibling;
+            const icon = headerElem.querySelector('.day-toggle-icon');
+            if (content.classList.contains('hidden')) {
+                content.classList.remove('hidden');
+                icon.textContent = '▲';
+            } else {
+                content.classList.add('hidden');
+                icon.textContent = '▼';
+            }
+        }
+
+        function toggleExerciseAccordion(headerElem) {
+            const content = headerElem.nextElementSibling;
+            const icon = headerElem.querySelector('.ex-toggle-icon');
+            if (content.classList.contains('hidden')) {
+                content.classList.remove('hidden');
+                icon.textContent = '▲';
+            } else {
+                content.classList.add('hidden');
+                icon.textContent = '▼';
+            }
+        }
+
+        function toggleSettingsAccordion(headerElem) {
+            const content = headerElem.nextElementSibling;
+            const icon = headerElem.querySelector('.settings-toggle-icon');
+            if (content.classList.contains('hidden')) {
+                content.classList.remove('hidden');
+                icon.textContent = '▲';
+            } else {
+                content.classList.add('hidden');
+                icon.textContent = '▼';
+            }
+        }
+
+        function togglePickupAccordion(headerElem) {
+            const content = headerElem.nextElementSibling;
+            const icon = headerElem.querySelector('.pickup-toggle-icon');
+            if (content.classList.contains('hidden')) {
+                content.classList.remove('hidden');
+                icon.textContent = '▲';
+            } else {
+                content.classList.add('hidden');
+                icon.textContent = '▼';
+            }
+        }
+
+        function saveWorkout() {
+            const nameInput = document.getElementById('exerciseName');
+            const name = nameInput.value.trim();
+            if (!name) {
+                alert('種目名を入力してください');
+                nameInput.focus();
+                return;
+            }
+
+            const container = document.getElementById('setsContainer');
+            const rows = container.querySelectorAll('.set-row');
+            const setList = [];
+            rows.forEach(row => {
+                const w = parseFloat(row.querySelector('.weight-input').value);
+                const r = parseInt(row.querySelector('.reps-input').value);
+                if (!isNaN(w) && !isNaN(r)) {
+                    setList.push({ weight: w, reps: r });
+                }
+            });
+
+            if (setList.length === 0) {
+                alert('有効な重量と回数を入力してください');
+                return;
+            }
+
+            if (editingId) {
+                const target = workouts.find(i => i.id === editingId);
+                if (target) {
+                    target.name = name;
+                    target.setList = setList;
+                }
+            } else {
+                const now = new Date();
+                const dateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+
+                const existing = workouts.find(i => i.dateStr === dateStr && i.name === name);
+                if (existing) {
+                    existing.setList = existing.setList.concat(setList);
+                } else {
+                    workouts.push({
+                        id: Date.now().toString(),
+                        name,
+                        dateStr,
+                        setList
+                    });
+                }
+            }
+
+            localStorage.setItem('simple_workouts', JSON.stringify(workouts));
+            resetForm();
+            renderWorkouts();
+            nameInput.focus();
+        }
+
+        function deleteWorkout(id) {
+            if (confirm('この記録を削除しますか？')) {
+                if (editingId === id) {
+                    resetForm();
+                }
+                workouts = workouts.filter(i => i.id !== id);
+                localStorage.setItem('simple_workouts', JSON.stringify(workouts));
+                renderWorkouts();
+            }
+        }
+
+        function exportData() {
+            const exportObj = {
+                workouts: workouts,
+                dayPplMap: dayPplMap
+            };
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(exportObj));
+            const a = document.createElement('a');
+            a.href = dataStr;
+            a.download = `workout_backup_${new Date().toISOString().slice(0,10)}.json`;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+        }
+
+        function importData(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(evt) {
+                try {
+                    const imported = JSON.parse(evt.target.result);
+                    let rawWorkouts = [];
+                    
+                    if (Array.isArray(imported)) {
+                        rawWorkouts = imported;
+                        dayPplMap = {};
+                    } else if (imported && typeof imported === 'object') {
+                        rawWorkouts = imported.workouts || [];
+                        dayPplMap = imported.dayPplMap || {};
+                    }
+                    
+                    workouts = sanitizeWorkouts(rawWorkouts);
+
+                    localStorage.setItem('simple_workouts', JSON.stringify(workouts));
+                    localStorage.setItem('simple_day_ppl', JSON.stringify(dayPplMap));
+                    resetForm();
+                    renderWorkouts();
+                    alert('データを正常に復元しました！');
+                } catch (err) {
+                    alert('ファイルの読み込みに失敗しました。');
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        function escapeHtml(str) {
+            return str.replace(/[&<>'"]/g, t => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[t] || t));
+        }
+
+        // 初期描画
+        renderWorkouts();
+    </script>
+</body>
+</html>
