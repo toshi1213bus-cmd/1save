@@ -45,47 +45,35 @@
         </button>
     </div>
 
-    <!-- 部位別ピックアップ推移カード -->
+    <!-- 部位別推移（縦1列・だしっぱなし） -->
     <div class="space-y-3">
         <h2 class="text-sm font-semibold text-gray-400 uppercase tracking-wider">部位別推移</h2>
-        <div class="grid grid-cols-2 gap-2">
+        <div class="space-y-2">
             <!-- PUSH -->
-            <div class="bg-gray-800 border border-gray-700 rounded-xl p-3 shadow">
-                <div class="flex justify-between items-center cursor-pointer select-none" onclick="togglePickupAccordion(this)">
-                    <span class="text-xs font-bold text-orange-400">PUSH</span>
-                    <span class="text-xs text-gray-500 pickup-toggle-icon">▼</span>
-                </div>
-                <div class="pickup-content hidden mt-2 pt-2 border-t border-gray-700 space-y-1 text-xs" id="pickupPush">
+            <div class="bg-gray-800 border border-gray-700 rounded-xl p-3 shadow space-y-1">
+                <div class="text-xs font-bold text-orange-400">PUSH (ベンチプレス)</div>
+                <div id="pickupPush" class="space-y-0.5 text-xs">
                     <div class="text-gray-400">データなし</div>
                 </div>
             </div>
             <!-- PULL -->
-            <div class="bg-gray-800 border border-gray-700 rounded-xl p-3 shadow">
-                <div class="flex justify-between items-center cursor-pointer select-none" onclick="togglePickupAccordion(this)">
-                    <span class="text-xs font-bold text-orange-400">PULL</span>
-                    <span class="text-xs text-gray-500 pickup-toggle-icon">▼</span>
-                </div>
-                <div class="pickup-content hidden mt-2 pt-2 border-t border-gray-700 space-y-1 text-xs" id="pickupPull">
+            <div class="bg-gray-800 border border-gray-700 rounded-xl p-3 shadow space-y-1">
+                <div class="text-xs font-bold text-orange-400">PULL (ワイドラット)</div>
+                <div id="pickupPull" class="space-y-0.5 text-xs">
                     <div class="text-gray-400">データなし</div>
                 </div>
             </div>
             <!-- LEGS -->
-            <div class="bg-gray-800 border border-gray-700 rounded-xl p-3 shadow">
-                <div class="flex justify-between items-center cursor-pointer select-none" onclick="togglePickupAccordion(this)">
-                    <span class="text-xs font-bold text-orange-400">LEGS</span>
-                    <span class="text-xs text-gray-500 pickup-toggle-icon">▼</span>
-                </div>
-                <div class="pickup-content hidden mt-2 pt-2 border-t border-gray-700 space-y-1 text-xs" id="pickupLegs">
+            <div class="bg-gray-800 border border-gray-700 rounded-xl p-3 shadow space-y-1">
+                <div class="text-xs font-bold text-orange-400">LEGS (ブルガリアン)</div>
+                <div id="pickupLegs" class="space-y-0.5 text-xs">
                     <div class="text-gray-400">データなし</div>
                 </div>
             </div>
             <!-- OTHER -->
-            <div class="bg-gray-800 border border-gray-700 rounded-xl p-3 shadow">
-                <div class="flex justify-between items-center cursor-pointer select-none" onclick="togglePickupAccordion(this)">
-                    <span class="text-xs font-bold text-orange-400">OTHER</span>
-                    <span class="text-xs text-gray-500 pickup-toggle-icon">▼</span>
-                </div>
-                <div class="pickup-content hidden mt-2 pt-2 border-t border-gray-700 space-y-1 text-xs" id="pickupOther">
+            <div class="bg-gray-800 border border-gray-700 rounded-xl p-3 shadow space-y-1">
+                <div class="text-xs font-bold text-orange-400">OTHER (レッグレイズ)</div>
+                <div id="pickupOther" class="space-y-0.5 text-xs">
                     <div class="text-gray-400">データなし</div>
                 </div>
             </div>
@@ -438,18 +426,6 @@
         function toggleSettingsAccordion(headerElem) {
             const content = headerElem.nextElementSibling;
             const icon = headerElem.querySelector('.settings-toggle-icon');
-            if (content.classList.contains('hidden')) {
-                content.classList.remove('hidden');
-                icon.textContent = '▲';
-            } else {
-                content.classList.add('hidden');
-                icon.textContent = '▼';
-            }
-        }
-
-        function togglePickupAccordion(headerElem) {
-            const content = headerElem.nextElementSibling;
-            const icon = headerElem.querySelector('.pickup-toggle-icon');
             if (content.classList.contains('hidden')) {
                 content.classList.remove('hidden');
                 icon.textContent = '▲';
