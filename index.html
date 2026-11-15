@@ -345,7 +345,7 @@
                 let header = `
                     <div class="flex justify-between items-center cursor-pointer select-none" onclick="toggleDayAccordion(this)">
                         <div class="flex items-center gap-2 flex-wrap">
-                            <span class="text-sm font-bold text-orange-400">📅 ${formatDate(dateStr)}</span>
+                            <span class="text-sm font-bold text-orange-400">${formatDate(dateStr)}</span>
                             <span class="text-xs bg-gray-900 border border-gray-700 text-gray-300 px-2 py-0.5 rounded-lg font-mono">総負荷: ${formattedVolume}kg</span>
                             <select onclick="event.stopPropagation()" onchange="updateDayPpl('${dateStr}', this)" class="text-xs bg-gray-900 border border-gray-700 text-orange-300 font-bold rounded-lg px-2 py-1 focus:outline-none focus:border-orange-500">
                                 <option value="PUSH" ${currentPpl === 'PUSH' ? 'selected' : ''}>PUSH</option>
