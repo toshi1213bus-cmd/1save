@@ -117,15 +117,15 @@
             </p>
             <div class="space-y-2 pt-2">
                 <button type="button" onclick="exportData()" class="w-full bg-gray-900 hover:bg-gray-700 text-gray-200 py-3 rounded-xl border border-gray-700 text-xs font-bold transition">
-                    出力 (JSONファイル)
+                    出力 (JSON)
                 </button>
             </div>
             <div class="space-y-2 pt-4 border-t border-gray-700">
                 <label class="block text-xs text-gray-400"></label>
-                <textarea id="importText" rows="4" placeholder="JSONデータ貼り付け" 
+                <textarea id="importText" rows="4" placeholder="JSON貼り付け" 
                     class="w-full bg-gray-900 border border-gray-700 rounded-xl p-3 text-xs text-white font-mono focus:outline-none focus:border-orange-500"></textarea>
                 <button type="button" onclick="importFromJsonText()" class="w-full bg-gray-900 hover:bg-gray-700 text-orange-400 py-3 rounded-xl border border-gray-700 text-xs font-bold transition">
-                    テキストから復元を実行
+                    復元実行
                 </button>
             </div>
         </div>
