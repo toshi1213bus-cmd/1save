@@ -238,11 +238,10 @@
         }
 
         function formatDate(dateStr) {
-            const [y, m, d] = dateStr.split('-');
-            const date = new Date(y, m - 1, d);
-            const w = ['日', '月', '火', '水', '木', '金', '土'][date.getDay()];
-            return `${y}/${parseInt(m)}/${parseInt(d)} (${w})`;
-        }
+    　　　　　const [y, m, d] = dateStr.split('-');
+   　　　　　 return `${parseInt(m)}/${parseInt(d)}`;
+　　　　　}
+
 
         function updateDayPpl(dateStr, selectElem) {
             dayPplMap[dateStr] = selectElem.value;
