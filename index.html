@@ -194,26 +194,38 @@
         let editingId = null;
         let visibleDaysCount = 5;
         let visibleCardioDaysCount = 5;
-
-        // --- インターバルタイマー関連ロジック ---
+        
+        // --- インターバルタイマー関連ロジック（停止ボタンを押すまで鳴り続ける仕様） ---
         let timerInterval = null;
+        let alarmInterval = null; // アラーム音のループ用
         let targetEndTime = null;
 
         function startTimer(minutes) {
-            stopTimer();
+            stopTimer(); // すでに動いているタイマーや音をリセット
             targetEndTime = Date.now() + minutes * 60 * 1000;
             updateTimerDisplay();
             timerInterval = setInterval(updateTimerDisplay, 200);
         }
 
         function updateTimerDisplay() {
+            if (!targetEndTime) return;
             const now = Date.now();
             const diff = targetEndTime - now;
 
             if (diff <= 0) {
-                stopTimer();
+                // カウントダウンを停止し、00:00固定にする
+                if (timerInterval) {
+                    clearInterval(timerInterval);
+                    timerInterval = null;
+                }
+                targetEndTime = null;
                 document.getElementById('timerDisplay').textContent = '00:00';
-                playBeep();
+                
+                // 停止ボタンが押されるまで、アラーム音をループ再生（未だ鳴っていなければ開始）
+                if (!alarmInterval) {
+                    playSingleBeep(); // すぐ1回鳴らす
+                    alarmInterval = setInterval(playSingleBeep, 400); // 0.4秒おきにピピッと連続再生
+                }
                 return;
             }
 
@@ -225,38 +237,34 @@
         }
 
         function stopTimer() {
+            // カウントダウンタイマーとアラームのループを両方とも完全に停止
             if (timerInterval) {
                 clearInterval(timerInterval);
                 timerInterval = null;
+            }
+            if (alarmInterval) {
+                clearInterval(alarmInterval);
+                alarmInterval = null;
             }
             targetEndTime = null;
             const display = document.getElementById('timerDisplay');
             if (display) display.textContent = '00:00';
         }
 
-        function playBeep() {
+        // 1回分の電子音を鳴らすヘルパー関数
+        function playSingleBeep() {
             try {
                 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-                let beepCount = 0;
-                const playTone = () => {
-                    if (beepCount >= 3) {
-                        audioCtx.close();
-                        return;
-                    }
-                    const osc = audioCtx.createOscillator();
-                    const gain = audioCtx.createGain();
-                    osc.type = 'sine';
-                    osc.frequency.setValueAtTime(880, audioCtx.currentTime);
-                    gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
-                    gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
-                    osc.connect(gain);
-                    gain.connect(audioCtx.destination);
-                    osc.start();
-                    osc.stop(audioCtx.currentTime + 0.1);
-                    beepCount++;
-                    setTimeout(playTone, 150);
-                };
-                playTone();
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(880, audioCtx.currentTime);
+                gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.15);
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.start();
+                osc.stop(audioCtx.currentTime + 0.15);
             } catch (e) {
                 console.log(e);
             }
