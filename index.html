@@ -24,19 +24,19 @@
 
     <!-- ================= 1. トレーニング記録タブ ================= -->
     <div id="tabContentWorkout" class="space-y-6">
-        <div class="bg-gray-800 border border-gray-700 rounded-2xl p-4 shadow-lg space-y-4">
-            <div class="flex justify-between items-center">
-                <h2 id="formTitle" class="text-sm font-semibold text-orange-400 uppercase tracking-wider"></h2>
-                <button type="button" id="cancelEditBtn" onclick="cancelEdit()" class="text-xs text-gray-400 hover:text-white hidden">キャンセル</button>
-            </div>
+        <div class="bg-gray-800 border border-gray-700 rounded-2xl p-4 shadow-lg">
+            <!-- 編集時のみここに「編集中 / キャンセル」が挿入されます（通常時は空白なし） -->
+            <div id="formHeaderContainer"></div>
             
-            <div>
+            <div class="mb-4 relative">
                 <label class="block text-xs text-gray-400 mb-1">種目名</label>
-                <input type="text" id="exerciseName" placeholder="入力" 
-                    class="w-full bg-gray-900 border border-gray-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-orange-500">
+                <input type="text" id="exerciseName" placeholder="入力" oninput="checkExerciseSuggestion()"
+                    class="w-full bg-gray-900 border border-gray-700 rounded-xl px-4 py-3 text-white text-center focus:outline-none focus:border-orange-500">
+                <!-- 絵文字なし・日付と種目名だけのクリーンなサジェストリスト -->
+                <div id="suggestionBox" class="hidden absolute left-0 right-0 mt-1 bg-gray-900 border border-gray-700 rounded-xl shadow-xl z-20 overflow-hidden"></div>
             </div>
 
-            <div class="space-y-2">
+            <div class="space-y-2 mb-4">
                 <span class="block text-xs text-gray-400">セット</span>
                 <div id="setsContainer" class="space-y-2">
                     <div class="set-row flex items-center gap-2">
@@ -102,7 +102,7 @@
         <div class="space-y-3">
             <h2 class="text-sm font-semibold text-gray-400 uppercase tracking-wider">今月合計</h2>
             <div class="bg-gray-800 border border-gray-700 rounded-xl p-3.5 shadow">
-                <div id="monthlyCardioSummary" class="text-xs text-orange-300 font-bold">0分 / 約0kcal</div>
+                <div id="monthlyCardioSummary" class="text-xs text-white font-bold font-mono">0分 / 約0kcal</div>
             </div>
         </div>
 
@@ -118,7 +118,7 @@
     <!-- ================= 3. 設定タブ ================= -->
     <div id="tabContentSettings" class="space-y-6 hidden">
         <div class="bg-gray-800 border border-gray-700 rounded-2xl p-4 shadow-lg space-y-4">
-            <h2 class="text-sm font-semibold text-orange-400 uppercase tracking-wider">バックアップ出力・復元</h2>
+            <h2 class="text-sm font-semibold text-gray-200 uppercase tracking-wider">バックアップ出力・復元</h2>
             <div class="space-y-2 pt-2">
                 <button type="button" onclick="exportData()" class="w-full bg-gray-900 hover:bg-gray-700 text-gray-200 py-3 rounded-xl border border-gray-700 text-xs font-bold transition">
                     出力 (JSON)
@@ -127,7 +127,7 @@
             <div class="space-y-2 pt-4 border-t border-gray-700">
                 <textarea id="importText" rows="4" placeholder="JSON貼り付け" 
                     class="w-full bg-gray-900 border border-gray-700 rounded-xl p-3 text-xs text-white font-mono focus:outline-none focus:border-orange-500"></textarea>
-                <button type="button" onclick="importFromJsonText()" class="w-full bg-gray-900 hover:bg-gray-700 text-orange-400 py-3 rounded-xl border border-gray-700 text-xs font-bold transition">
+                <button type="button" onclick="importFromJsonText()" class="w-full bg-gray-900 hover:bg-gray-700 text-gray-200 py-3 rounded-xl border border-gray-700 text-xs font-bold transition">
                     復元実行
                 </button>
             </div>
@@ -208,6 +208,69 @@
             }
         }
 
+        // 入力文字に合致する過去の履歴をリアルタイム絞り込み（絵文字なし・日付と種目名のみ）
+        function checkExerciseSuggestion() {
+            const query = document.getElementById('exerciseName').value.trim().toLowerCase();
+            const box = document.getElementById('suggestionBox');
+            if (!box) return;
+
+            if (!query || editingId !== null) {
+                box.classList.add('hidden');
+                box.innerHTML = '';
+                return;
+            }
+
+            const matched = workouts.filter(i => i.name.toLowerCase().includes(query));
+            if (matched.length === 0) {
+                box.classList.add('hidden');
+                box.innerHTML = '';
+                return;
+            }
+
+            matched.sort((a, b) => new Date(b.dateStr) - new Date(a.dateStr));
+
+            const seen = new Set();
+            let html = '';
+            let count = 0;
+
+            for (const item of matched) {
+                const key = `${item.dateStr}_${item.name}`;
+                if (seen.has(key)) continue;
+                seen.add(key);
+                count++;
+                if (count > 5) break;
+
+                html += `
+                    <button type="button" onclick="applySuggestion('${item.id}')" class="w-full px-4 py-3 text-left text-xs text-gray-200 hover:bg-gray-800 hover:text-orange-400 border-b border-gray-800 last:border-b-0 transition flex justify-between items-center">
+                        <span class="font-bold">${formatDate(item.dateStr)}  ${escapeHtml(item.name)}</span>
+                        <span class="text-gray-500 text-[10px]">${item.setList.length}セット</span>
+                    </button>
+                `;
+            }
+
+            if (html === '') {
+                box.classList.add('hidden');
+                box.innerHTML = '';
+            } else {
+                box.classList.remove('hidden');
+                box.innerHTML = html;
+            }
+        }
+
+        // サジェストをタップした時：過去データを借りてきて新規フォームに展開する
+        function applySuggestion(id) {
+            const target = workouts.find(i => i.id === id);
+            if (!target) return;
+
+            document.getElementById('exerciseName').value = target.name;
+            document.getElementById('suggestionBox').classList.add('hidden');
+            document.getElementById('suggestionBox').innerHTML = '';
+
+            const container = document.getElementById('setsContainer');
+            container.innerHTML = '';
+            target.setList.forEach(set => addSetRow(set.weight, set.reps));
+        }
+
         function addSetRow(w = '', r = '') {
             const container = document.getElementById('setsContainer');
             if (!container) return;
@@ -252,9 +315,10 @@
         function resetForm() {
             editingId = null;
             document.getElementById('exerciseName').value = '';
-            document.getElementById('formTitle').textContent = '';
+            document.getElementById('suggestionBox').classList.add('hidden');
+            document.getElementById('suggestionBox').innerHTML = '';
+            document.getElementById('formHeaderContainer').innerHTML = '';
             document.getElementById('saveBtn').textContent = '保存';
-            document.getElementById('cancelEditBtn').classList.add('hidden');
             const container = document.getElementById('setsContainer');
             if (!container) return;
             container.innerHTML = `
@@ -272,13 +336,21 @@
 
         function cancelEdit() { resetForm(); }
 
+        // 編集モード：ここで「編集中」のヘッダーを表示し、ボタンを更新に切り替える
         function editWorkout(id) {
             const target = workouts.find(i => i.id === id);
             if (!target) return;
             editingId = id;
-            document.getElementById('formTitle').textContent = '編集中';
+            document.getElementById('suggestionBox').classList.add('hidden');
+            
+            document.getElementById('formHeaderContainer').innerHTML = `
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-sm font-semibold text-gray-200 uppercase tracking-wider">編集中</h2>
+                    <button type="button" onclick="cancelEdit()" class="text-xs text-gray-400 hover:text-white">キャンセル</button>
+                </div>
+            `;
             document.getElementById('saveBtn').textContent = '更新';
-            document.getElementById('cancelEditBtn').classList.remove('hidden');
+
             document.getElementById('exerciseName').value = target.name;
             const container = document.getElementById('setsContainer');
             container.innerHTML = '';
@@ -332,8 +404,8 @@
                 const latestVal = values[values.length - 1];
                 const trendStr = values.join(' ➔ ');
                 container.innerHTML = `
-                    <div class="text-orange-300 font-bold">${config.label}：${latestVal}</div>
-                    <div class="text-gray-400 font-mono text-[11px] break-all">推移：${trendStr}</div>
+                    <div class="text-gray-300 font-bold">${config.label}：<span class="font-mono text-white">${latestVal}</span></div>
+                    <div class="text-gray-400 font-mono text-[11px] break-all">${trendStr}</div>
                 `;
             }
         }
@@ -374,10 +446,10 @@
 
                 let header = `
                     <div class="flex justify-between items-center cursor-pointer select-none" onclick="toggleDayAccordion(this)">
-                        <div class="flex items-center gap-2 flex-wrap">
+                        <div class="flex items-center gap-2.5 flex-wrap">
                             <span class="text-sm font-bold text-orange-400">${formatDate(dateStr)}</span>
-                            <span class="text-xs bg-gray-900 border border-gray-700 text-gray-300 px-2 py-0.5 rounded-lg font-mono">総負荷: ${formattedVolume}kg</span>
-                            <select onclick="event.stopPropagation()" onchange="updateDayPpl('${dateStr}', this)" class="text-xs bg-gray-900 border border-gray-700 text-orange-300 font-bold rounded-lg px-2 py-1 focus:outline-none focus:border-orange-500">
+                            <span class="text-xs text-gray-300 font-mono">総負荷: ${formattedVolume}kg</span>
+                            <select onclick="event.stopPropagation()" onchange="updateDayPpl('${dateStr}', this)" class="text-xs bg-gray-900 border border-gray-700 text-gray-200 font-bold rounded-lg px-2 py-1 focus:outline-none focus:border-orange-500">
                                 <option value="PUSH" ${currentPpl === 'PUSH' ? 'selected' : ''}>PUSH</option>
                                 <option value="PULL" ${currentPpl === 'PULL' ? 'selected' : ''}>PULL</option>
                                 <option value="LEGS" ${currentPpl === 'LEGS' ? 'selected' : ''}>LEGS</option>
@@ -393,8 +465,8 @@
                     const setsHtml = item.setList.map((s, idx) => `
                         <div class="text-xs text-gray-300 font-semibold flex items-center gap-2">
                             <span class="text-gray-500 w-4">${idx + 1}.</span>
-                            <span class="text-orange-300">${s.weight} kg</span> × 
-                            <span class="text-orange-300">${s.reps} 回</span>
+                            <span class="text-white font-mono">${s.weight} kg</span> × 
+                            <span class="text-white font-mono">${s.reps} 回</span>
                         </div>
                     `).join('');
 
@@ -406,8 +478,8 @@
                                     <span class="text-xs text-gray-500">(${item.setList.length}セット)</span>
                                 </div>
                                 <div class="flex items-center gap-2">
-                                    <span class="text-xs text-orange-400 ex-toggle-icon">▼</span>
-                                    <button type="button" onclick="event.stopPropagation(); editWorkout('${item.id}')" class="text-xs text-gray-400 hover:text-orange-400 px-2 py-1 bg-gray-800 border border-gray-700 rounded-lg font-medium">編集</button>
+                                    <span class="text-xs text-gray-400 ex-toggle-icon">▼</span>
+                                    <button type="button" onclick="event.stopPropagation(); editWorkout('${item.id}')" class="text-xs text-gray-400 hover:text-white px-2 py-1 bg-gray-800 border border-gray-700 rounded-lg font-medium">編集</button>
                                     <button type="button" onclick="event.stopPropagation(); deleteWorkout('${item.id}')" class="text-gray-500 hover:text-red-400 p-1">✕</button>
                                 </div>
                             </div>
@@ -427,7 +499,7 @@
                 const moreBtn = document.createElement('button');
                 moreBtn.type = 'button';
                 moreBtn.onclick = loadMoreDays;
-                moreBtn.className = 'w-full py-3 bg-gray-800 hover:bg-gray-700 text-orange-400 text-sm font-bold rounded-xl border border-gray-700 shadow transition active:scale-[0.98]';
+                moreBtn.className = 'w-full py-3 bg-gray-800 hover:bg-gray-700 text-gray-200 text-sm font-bold rounded-xl border border-gray-700 shadow transition active:scale-[0.98]';
                 moreBtn.textContent = '＋ さらに過去の履歴を表示';
                 list.appendChild(moreBtn);
             }
@@ -597,9 +669,9 @@
                 const div = document.createElement('div');
                 div.className = 'bg-gray-800 border border-gray-700 rounded-xl p-3 flex justify-between items-center shadow';
                 div.innerHTML = `
-                    <div class="flex items-center gap-3">
+                    <div class="flex items-center gap-2.5">
                         <span class="text-sm font-bold text-orange-400">${formatDate(dateStr)}</span>
-                        <span class="text-sm font-bold text-white">${dayCardio.minutes}分 <span class="text-xs text-gray-400 font-normal">(約${dayKcal}kcal)</span></span>
+                        <span class="text-xs text-gray-300 font-mono">${dayCardio.minutes}分 / 約${dayKcal}kcal</span>
                     </div>
                     <button type="button" onclick="deleteCardio('${dayCardio.id}')" class="text-gray-500 hover:text-red-400 p-1">✕</button>
                 `;
@@ -610,7 +682,7 @@
                 const moreBtn = document.createElement('button');
                 moreBtn.type = 'button';
                 moreBtn.onclick = loadMoreCardioDays;
-                moreBtn.className = 'w-full py-3 bg-gray-800 hover:bg-gray-700 text-orange-400 text-sm font-bold rounded-xl border border-gray-700 shadow transition active:scale-[0.98]';
+                moreBtn.className = 'w-full py-3 bg-gray-800 hover:bg-gray-700 text-gray-200 text-sm font-bold rounded-xl border border-gray-700 shadow transition active:scale-[0.98]';
                 moreBtn.textContent = '＋ さらに過去の履歴を表示';
                 list.appendChild(moreBtn);
             }
