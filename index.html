@@ -7,7 +7,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <meta name="theme-color" content="#111827">
 </head>
-<body class="bg-gray-900 text-gray-100 min-h-screen p-4 pb-24 max-w-md mx-auto space-y-6">
+<body class="bg-gray-900 text-gray-100 min-h-screen p-4 pb-24 max-w-md mx-auto space-y-4">
 
     <!-- 最上段タブ切り替えバー -->
     <div class="flex bg-gray-800 border border-gray-700 rounded-2xl p-1 shadow-md">
@@ -22,17 +22,31 @@
         </button>
     </div>
 
+    <!-- インターバルタイマーバー（タブバーと入力フォームの間） -->
+    <div class="bg-gray-800 border border-gray-700 rounded-2xl px-4 py-2.5 shadow-md flex justify-between items-center">
+        <div class="flex items-center gap-2 font-mono text-sm font-bold text-orange-400">
+            <span>⏱</span>
+            <span id="timerDisplay">00:00</span>
+        </div>
+        <div class="flex items-center gap-1.5">
+            <button type="button" onclick="startTimer(3)" class="px-2.5 py-1 bg-gray-900 hover:bg-gray-700 border border-gray-700 rounded-lg text-xs font-bold text-gray-200 transition">3分</button>
+            <button type="button" onclick="startTimer(2)" class="px-2.5 py-1 bg-gray-900 hover:bg-gray-700 border border-gray-700 rounded-lg text-xs font-bold text-gray-200 transition">2分</button>
+            <button type="button" onclick="startTimer(1)" class="px-2.5 py-1 bg-gray-900 hover:bg-gray-700 border border-gray-700 rounded-lg text-xs font-bold text-gray-200 transition">1分</button>
+            <button type="button" onclick="stopTimer()" class="px-2 py-1 bg-gray-900 hover:bg-gray-700 border border-gray-700 rounded-lg text-xs font-bold text-gray-400 hover:text-red-400 transition">✕</button>
+        </div>
+    </div>
+
     <!-- ================= 1. トレーニング記録タブ ================= -->
     <div id="tabContentWorkout" class="space-y-6">
         <div class="bg-gray-800 border border-gray-700 rounded-2xl p-4 shadow-lg">
-            <!-- 編集時のみここに「編集中 / キャンセル」が挿入されます（通常時は空白なし） -->
+            <!-- 編集時のみここに「編集中 / キャンセル」が挿入されます -->
             <div id="formHeaderContainer"></div>
             
             <div class="mb-4 relative">
                 <label class="block text-xs text-gray-400 mb-1">種目名</label>
                 <input type="text" id="exerciseName" placeholder="入力" oninput="checkExerciseSuggestion()"
                     class="w-full bg-gray-900 border border-gray-700 rounded-xl px-4 py-3 text-white text-center focus:outline-none focus:border-orange-500">
-                <!-- 絵文字なし・日付と種目名だけのクリーンなサジェストリスト -->
+                <!-- 絵文字なし・前方一致＆最新1件のみのサジェストリスト -->
                 <div id="suggestionBox" class="hidden absolute left-0 right-0 mt-1 bg-gray-900 border border-gray-700 rounded-xl shadow-xl z-20 overflow-hidden"></div>
             </div>
 
@@ -54,6 +68,7 @@
                 </button>
             </div>
 
+            <!-- 通常時は「保存」、編集中は「更新」に変わるボタン -->
             <button type="button" id="saveBtn" onclick="saveWorkout()" class="w-full bg-orange-500 hover:bg-orange-600 text-white font-bold py-3.5 rounded-xl shadow-md transition active:scale-[0.98]">
                 保存
             </button>
@@ -180,6 +195,74 @@
         let visibleDaysCount = 5;
         let visibleCardioDaysCount = 5;
 
+        // --- インターバルタイマー関連ロジック ---
+        let timerInterval = null;
+        let targetEndTime = null;
+
+        function startTimer(minutes) {
+            stopTimer();
+            targetEndTime = Date.now() + minutes * 60 * 1000;
+            updateTimerDisplay();
+            timerInterval = setInterval(updateTimerDisplay, 200);
+        }
+
+        function updateTimerDisplay() {
+            const now = Date.now();
+            const diff = targetEndTime - now;
+
+            if (diff <= 0) {
+                stopTimer();
+                document.getElementById('timerDisplay').textContent = '00:00';
+                playBeep();
+                return;
+            }
+
+            const totalSec = Math.ceil(diff / 1000);
+            const m = Math.floor(totalSec / 60);
+            const s = totalSec % 60;
+            document.getElementById('timerDisplay').textContent = 
+                String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
+        }
+
+        function stopTimer() {
+            if (timerInterval) {
+                clearInterval(timerInterval);
+                timerInterval = null;
+            }
+            targetEndTime = null;
+            const display = document.getElementById('timerDisplay');
+            if (display) display.textContent = '00:00';
+        }
+
+        function playBeep() {
+            try {
+                const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                let beepCount = 0;
+                const playTone = () => {
+                    if (beepCount >= 3) {
+                        audioCtx.close();
+                        return;
+                    }
+                    const osc = audioCtx.createOscillator();
+                    const gain = audioCtx.createGain();
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(880, audioCtx.currentTime);
+                    gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
+                    osc.connect(gain);
+                    gain.connect(audioCtx.destination);
+                    osc.start();
+                    osc.stop(audioCtx.currentTime + 0.1);
+                    beepCount++;
+                    setTimeout(playTone, 150);
+                };
+                playTone();
+            } catch (e) {
+                console.log(e);
+            }
+        }
+        // ----------------------------------------
+
         function switchTab(tabName) {
             const wContent = document.getElementById('tabContentWorkout');
             const cContent = document.getElementById('tabContentCardio');
@@ -208,7 +291,7 @@
             }
         }
 
-        // 入力文字に合致する過去の履歴をリアルタイム絞り込み（絵文字なし・日付と種目名のみ）
+        // 入力文字に合致する過去の履歴をリアルタイム絞り込み（前方一致・各種目最新1件のみ）
         function checkExerciseSuggestion() {
             const query = document.getElementById('exerciseName').value.trim().toLowerCase();
             const box = document.getElementById('suggestionBox');
@@ -220,26 +303,29 @@
                 return;
             }
 
-            const matched = workouts.filter(i => i.name.toLowerCase().includes(query));
+            const sortedWorkouts = [...workouts].sort((a, b) => Number(b.id) - Number(a.id));
+            const matched = [];
+            const seenNames = new Set();
+
+            for (const workout of sortedWorkouts) {
+                if (workout.name.toLowerCase().startsWith(query)) {
+                    if (!seenNames.has(workout.name)) {
+                        seenNames.add(workout.name);
+                        matched.push(workout);
+                    }
+                }
+            }
+
             if (matched.length === 0) {
                 box.classList.add('hidden');
                 box.innerHTML = '';
                 return;
             }
 
-            matched.sort((a, b) => new Date(b.dateStr) - new Date(a.dateStr));
-
-            const seen = new Set();
+            const displayItems = matched.slice(0, 5);
             let html = '';
-            let count = 0;
 
-            for (const item of matched) {
-                const key = `${item.dateStr}_${item.name}`;
-                if (seen.has(key)) continue;
-                seen.add(key);
-                count++;
-                if (count > 5) break;
-
+            for (const item of displayItems) {
                 html += `
                     <button type="button" onclick="applySuggestion('${item.id}')" class="w-full px-4 py-3 text-left text-xs text-gray-200 hover:bg-gray-800 hover:text-orange-400 border-b border-gray-800 last:border-b-0 transition flex justify-between items-center">
                         <span class="font-bold">${formatDate(item.dateStr)}  ${escapeHtml(item.name)}</span>
@@ -248,16 +334,10 @@
                 `;
             }
 
-            if (html === '') {
-                box.classList.add('hidden');
-                box.innerHTML = '';
-            } else {
-                box.classList.remove('hidden');
-                box.innerHTML = html;
-            }
+            box.classList.remove('hidden');
+            box.innerHTML = html;
         }
 
-        // サジェストをタップした時：過去データを借りてきて新規フォームに展開する
         function applySuggestion(id) {
             const target = workouts.find(i => i.id === id);
             if (!target) return;
@@ -336,7 +416,6 @@
 
         function cancelEdit() { resetForm(); }
 
-        // 編集モード：ここで「編集中」のヘッダーを表示し、ボタンを更新に切り替える
         function editWorkout(id) {
             const target = workouts.find(i => i.id === id);
             if (!target) return;
@@ -738,7 +817,7 @@
         }
 
         function escapeHtml(str) {
-            return str.replace(/[&<>'"]/g, t => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[t] || t));
+            return str.replace(/[&<>'"]/g, t => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '#' + '39;', '"': '&quot;' }[t] || t));
         }
 
         renderWorkouts();
