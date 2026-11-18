@@ -22,31 +22,32 @@
         </button>
     </div>
 
-    <!-- インターバルタイマーバー（タブバーと入力フォームの間） -->
-    <div class="bg-gray-800 border border-gray-700 rounded-2xl px-4 py-2.5 shadow-md flex justify-between items-center">
-        <div class="flex items-center gap-2 font-mono text-sm font-bold text-orange-400">
-            <span>⏱</span>
-            <span id="timerDisplay">00:00</span>
-        </div>
-        <div class="flex items-center gap-1.5">
-            <button type="button" onclick="startTimer(3)" class="px-2.5 py-1 bg-gray-900 hover:bg-gray-700 border border-gray-700 rounded-lg text-xs font-bold text-gray-200 transition">3分</button>
-            <button type="button" onclick="startTimer(2)" class="px-2.5 py-1 bg-gray-900 hover:bg-gray-700 border border-gray-700 rounded-lg text-xs font-bold text-gray-200 transition">2分</button>
-            <button type="button" onclick="startTimer(1)" class="px-2.5 py-1 bg-gray-900 hover:bg-gray-700 border border-gray-700 rounded-lg text-xs font-bold text-gray-200 transition">1分</button>
-            <button type="button" onclick="stopTimer()" class="px-2 py-1 bg-gray-900 hover:bg-gray-700 border border-gray-700 rounded-lg text-xs font-bold text-gray-400 hover:text-red-400 transition">✕</button>
-        </div>
-    </div>
-
     <!-- ================= 1. トレーニング記録タブ ================= -->
     <div id="tabContentWorkout" class="space-y-6">
+        
+        <!-- 【改良】インターバルタイマー（縦2段・大型化でタップ性向上） -->
+        <div class="bg-gray-800 border border-gray-700 rounded-2xl p-4 shadow-md space-y-3">
+            <!-- 1段目：残り時間表示 -->
+            <div class="flex items-center justify-center gap-2 font-mono text-xl font-bold text-orange-400">
+                <span>⏱</span>
+                <span id="timerDisplay">00:00</span>
+            </div>
+            <!-- 2段目：操作ボタン（タップ面を大きく確保） -->
+            <div class="grid grid-cols-4 gap-2">
+                <button type="button" onclick="startTimer(3)" class="py-2.5 bg-gray-900 hover:bg-gray-700 border border-gray-700 rounded-xl text-xs font-bold text-gray-200 transition active:scale-[0.98]">3分</button>
+                <button type="button" onclick="startTimer(2)" class="py-2.5 bg-gray-900 hover:bg-gray-700 border border-gray-700 rounded-xl text-xs font-bold text-gray-200 transition active:scale-[0.98]">2分</button>
+                <button type="button" onclick="startTimer(1)" class="py-2.5 bg-gray-900 hover:bg-gray-700 border border-gray-700 rounded-xl text-xs font-bold text-gray-200 transition active:scale-[0.98]">1分</button>
+                <button type="button" onclick="stopTimer()" class="py-2.5 bg-gray-900 hover:bg-gray-700 border border-gray-700 rounded-xl text-xs font-bold text-gray-400 hover:text-red-400 transition active:scale-[0.98]">✕</button>
+            </div>
+        </div>
+
         <div class="bg-gray-800 border border-gray-700 rounded-2xl p-4 shadow-lg">
-            <!-- 編集時のみここに「編集中 / キャンセル」が挿入されます -->
             <div id="formHeaderContainer"></div>
             
             <div class="mb-4 relative">
                 <label class="block text-xs text-gray-400 mb-1">種目名</label>
                 <input type="text" id="exerciseName" placeholder="入力" oninput="checkExerciseSuggestion()"
                     class="w-full bg-gray-900 border border-gray-700 rounded-xl px-4 py-3 text-white text-center focus:outline-none focus:border-orange-500">
-                <!-- 絵文字なし・前方一致＆最新1件のみのサジェストリスト -->
                 <div id="suggestionBox" class="hidden absolute left-0 right-0 mt-1 bg-gray-900 border border-gray-700 rounded-xl shadow-xl z-20 overflow-hidden"></div>
             </div>
 
@@ -68,10 +69,17 @@
                 </button>
             </div>
 
-            <!-- 通常時は「保存」、編集中は「更新」に変わるボタン -->
             <button type="button" id="saveBtn" onclick="saveWorkout()" class="w-full bg-orange-500 hover:bg-orange-600 text-white font-bold py-3.5 rounded-xl shadow-md transition active:scale-[0.98]">
                 保存
             </button>
+        </div>
+
+        <!-- 【新規】トレーニングタブ内の今月合計（部位別実施日数） -->
+        <div class="space-y-3">
+            <h2 class="text-sm font-semibold text-gray-400 uppercase tracking-wider">今月合計</h2>
+            <div class="bg-gray-800 border border-gray-700 rounded-xl p-3.5 shadow">
+                <div id="monthlyWorkoutSummary" class="text-xs text-white font-bold font-mono">Push 0回 / Pull 0回 / Leg 0回 / Other 0回</div>
+            </div>
         </div>
 
         <div class="space-y-3">
@@ -117,7 +125,8 @@
         <div class="space-y-3">
             <h2 class="text-sm font-semibold text-gray-400 uppercase tracking-wider">今月合計</h2>
             <div class="bg-gray-800 border border-gray-700 rounded-xl p-3.5 shadow">
-                <div id="monthlyCardioSummary" class="text-xs text-white font-bold font-mono">0分 / 約0kcal</div>
+                <!-- 【改良】有酸素の今月合計に「回数」を追加 -->
+                <div id="monthlyCardioSummary" class="text-xs text-white font-bold font-mono">0回 / 0分 / 約0kcal</div>
             </div>
         </div>
 
@@ -148,8 +157,7 @@
             </div>
         </div>
     </div>
-
-    <script>
+        <script>
         function sanitizeWorkouts(rawWorkouts) {
             if (!Array.isArray(rawWorkouts)) return [];
             const uniqueMap = new Map();
@@ -188,20 +196,33 @@
             });
             return Array.from(uniqueMap.values());
         }
+
         let workouts = sanitizeWorkouts(JSON.parse(localStorage.getItem('simple_workouts')) || []);
         let cardios = sanitizeCardios(JSON.parse(localStorage.getItem('simple_cardios')) || []);
         let dayPplMap = JSON.parse(localStorage.getItem('simple_day_ppl')) || {};
         let editingId = null;
         let visibleDaysCount = 5;
         let visibleCardioDaysCount = 5;
-        
-        // --- インターバルタイマー関連ロジック（停止ボタンを押すまで鳴り続ける仕様） ---
+
+        // タイマー＆アラーム継続ロジック
         let timerInterval = null;
-        let alarmInterval = null; // アラーム音のループ用
+        let alarmInterval = null;
         let targetEndTime = null;
+        let sharedAudioCtx = null;
+
+        function getAudioContext() {
+            if (!sharedAudioCtx) {
+                const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+                sharedAudioCtx = new AudioContextClass();
+            }
+            if (sharedAudioCtx.state === 'suspended') {
+                sharedAudioCtx.resume();
+            }
+            return sharedAudioCtx;
+        }
 
         function startTimer(minutes) {
-            stopTimer(); // すでに動いているタイマーや音をリセット
+            stopTimer();
             targetEndTime = Date.now() + minutes * 60 * 1000;
             updateTimerDisplay();
             timerInterval = setInterval(updateTimerDisplay, 200);
@@ -213,7 +234,6 @@
             const diff = targetEndTime - now;
 
             if (diff <= 0) {
-                // カウントダウンを停止し、00:00固定にする
                 if (timerInterval) {
                     clearInterval(timerInterval);
                     timerInterval = null;
@@ -221,10 +241,9 @@
                 targetEndTime = null;
                 document.getElementById('timerDisplay').textContent = '00:00';
                 
-                // 停止ボタンが押されるまで、アラーム音をループ再生（未だ鳴っていなければ開始）
                 if (!alarmInterval) {
-                    playSingleBeep(); // すぐ1回鳴らす
-                    alarmInterval = setInterval(playSingleBeep, 400); // 0.4秒おきにピピッと連続再生
+                    playSingleBeep();
+                    alarmInterval = setInterval(playSingleBeep, 400);
                 }
                 return;
             }
@@ -237,7 +256,6 @@
         }
 
         function stopTimer() {
-            // カウントダウンタイマーとアラームのループを両方とも完全に停止
             if (timerInterval) {
                 clearInterval(timerInterval);
                 timerInterval = null;
@@ -251,25 +269,23 @@
             if (display) display.textContent = '00:00';
         }
 
-        // 1回分の電子音を鳴らすヘルパー関数
         function playSingleBeep() {
             try {
-                const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-                const osc = audioCtx.createOscillator();
-                const gain = audioCtx.createGain();
+                const ctx = getAudioContext();
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
                 osc.type = 'sine';
-                osc.frequency.setValueAtTime(880, audioCtx.currentTime);
-                gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
-                gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.15);
+                osc.frequency.setValueAtTime(880, ctx.currentTime);
+                gain.gain.setValueAtTime(0.1, ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.15);
                 osc.connect(gain);
-                gain.connect(audioCtx.destination);
+                gain.connect(ctx.destination);
                 osc.start();
-                osc.stop(audioCtx.currentTime + 0.15);
+                osc.stop(ctx.currentTime + 0.15);
             } catch (e) {
                 console.log(e);
             }
         }
-        // ----------------------------------------
 
         function switchTab(tabName) {
             const wContent = document.getElementById('tabContentWorkout');
@@ -299,7 +315,6 @@
             }
         }
 
-        // 入力文字に合致する過去の履歴をリアルタイム絞り込み（前方一致・各種目最新1件のみ）
         function checkExerciseSuggestion() {
             const query = document.getElementById('exerciseName').value.trim().toLowerCase();
             const box = document.getElementById('suggestionBox');
@@ -445,8 +460,7 @@
             window.scrollTo({ top: 0, behavior: 'smooth' });
             document.getElementById('exerciseName').focus();
         }
-
-        function formatDate(dateStr) {
+                    function formatDate(dateStr) {
             const [y, m, d] = dateStr.split('-');
             return `${parseInt(m)}/${parseInt(d)}`;
         }
@@ -454,6 +468,31 @@
         function updateDayPpl(dateStr, selectElem) {
             dayPplMap[dateStr] = selectElem.value;
             localStorage.setItem('simple_day_ppl', JSON.stringify(dayPplMap));
+            renderWorkouts();
+        }
+
+        // トレーニング月間集計（部位別の実施「日数」をカウント）
+        function updateMonthlyWorkoutSummary() {
+            const summaryElem = document.getElementById('monthlyWorkoutSummary');
+            if (!summaryElem) return;
+
+            const now = new Date();
+            const currentYearMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+
+            let counts = { PUSH: 0, PULL: 0, LEGS: 0, OTHER: 0 };
+
+            // 履歴に存在する日付ごとにPPLを集計
+            const activeDates = new Set(workouts.map(i => i.dateStr));
+            activeDates.forEach(dateStr => {
+                if (dateStr.startsWith(currentYearMonth)) {
+                    const ppl = dayPplMap[dateStr] || 'PUSH';
+                    if (counts[ppl] !== undefined) {
+                        counts[ppl]++;
+                    }
+                }
+            });
+
+            summaryElem.textContent = `Push ${counts.PUSH}回 / Pull ${counts.PULL}回 / Leg ${counts.LEGS}回 / Other ${counts.OTHER}回`;
         }
 
         function updatePickupStats() {
@@ -496,11 +535,14 @@
                 `;
             }
         }
+
         function renderWorkouts() {
             const list = document.getElementById('workoutList');
             const empty = document.getElementById('emptyMessage');
             if (!list) return;
             list.innerHTML = '';
+
+            updateMonthlyWorkoutSummary();
 
             if (workouts.length === 0) {
                 if (empty) empty.classList.remove('hidden');
@@ -587,7 +629,7 @@
                 moreBtn.type = 'button';
                 moreBtn.onclick = loadMoreDays;
                 moreBtn.className = 'w-full py-3 bg-gray-800 hover:bg-gray-700 text-gray-200 text-sm font-bold rounded-xl border border-gray-700 shadow transition active:scale-[0.98]';
-                moreBtn.textContent = '＋ さらに過去の履歴を表示';
+                moreBtn.textContent = '＋';
                 list.appendChild(moreBtn);
             }
 
@@ -733,10 +775,11 @@
             const now = new Date();
             const currentYearMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
             const monthlyItems = cardios.filter(i => i.dateStr.startsWith(currentYearMonth));
+            const totalCount = monthlyItems.length;
             const totalMin = monthlyItems.reduce((sum, i) => sum + i.minutes, 0);
             const totalKcal = Math.round(totalMin * 3.5);
             if (summary) {
-                summary.textContent = `${totalMin}分 / 約${totalKcal}kcal`;
+                summary.textContent = `${totalCount}回 / ${totalMin}分 / 約${totalKcal}kcal`;
             }
 
             if (cardios.length === 0) {
@@ -770,7 +813,7 @@
                 moreBtn.type = 'button';
                 moreBtn.onclick = loadMoreCardioDays;
                 moreBtn.className = 'w-full py-3 bg-gray-800 hover:bg-gray-700 text-gray-200 text-sm font-bold rounded-xl border border-gray-700 shadow transition active:scale-[0.98]';
-                moreBtn.textContent = '＋ さらに過去の履歴を表示';
+                moreBtn.textContent = '＋';
                 list.appendChild(moreBtn);
             }
         }
