@@ -73,21 +73,29 @@
             </button>
         </div>
 
-        <!-- サブタブ切り替えバー（合計 / 推移 ⇄ 履歴） -->
+        <!-- サブタブ切り替えバー（左：履歴 ⇄ 右：合計 / 推移） -->
         <div class="flex bg-gray-800 border border-gray-700 rounded-2xl p-1 shadow-md">
-            <button type="button" onclick="switchWorkoutSubTab('stats')" id="subTabBtnStats" class="flex-1 py-2 text-xs font-bold rounded-xl text-orange-400 bg-gray-900 shadow transition">
-                合計 / 推移
-            </button>
-            <button type="button" onclick="switchWorkoutSubTab('history')" id="subTabBtnHistory" class="flex-1 py-2 text-xs font-bold rounded-xl text-gray-400 hover:text-white transition">
+            <button type="button" onclick="switchWorkoutSubTab('history')" id="subTabBtnHistory" class="flex-1 py-2 text-xs font-bold rounded-xl text-orange-400 bg-gray-900 shadow transition">
                 履歴
+            </button>
+            <button type="button" onclick="switchWorkoutSubTab('stats')" id="subTabBtnStats" class="flex-1 py-2 text-xs font-bold rounded-xl text-gray-400 hover:text-white transition">
+                合計 / 推移
             </button>
         </div>
 
-        <!-- サブコンテンツ1：合計 / 推移 -->
-        <div id="subTabContentStats" class="space-y-5">
+        <!-- サブコンテンツ1：履歴（初期表示） -->
+        <div id="subTabContentHistory" class="space-y-4">
+            <div id="workoutList" class="space-y-3"></div>
+            <div id="emptyMessage" class="text-center text-gray-500 py-10 hidden">
+                記録がまだありません。
+            </div>
+        </div>
+
+        <!-- サブコンテンツ2：合計 / 推移（非表示スタート） -->
+        <div id="subTabContentStats" class="space-y-5 hidden">
             <!-- 1行スマート「今月(先月)合計」 -->
             <div class="space-y-2.5">
-                <h2 class="text-sm font-semibold text-gray-400 uppercase tracking-wider">今月(先月)合計</h2>
+                <h2 class="text-sm font-semibold text-orange-400 uppercase tracking-wider">今月(先月)合計</h2>
                 <div class="bg-gray-800 border border-gray-700 rounded-xl p-3.5 shadow">
                     <div id="monthlyWorkoutSummary" class="text-[11px] text-white font-bold font-mono tracking-tight">Push: 0(0)回 / Pull: 0(0)回 / Leg: 0(0)回 / Other: 0(0)回</div>
                 </div>
@@ -95,7 +103,7 @@
 
             <!-- 基本種目推移 -->
             <div class="space-y-3">
-                <h2 class="text-sm font-semibold text-gray-400 uppercase tracking-wider">基本種目推移</h2>
+                <h2 class="text-sm font-semibold text-orange-400 uppercase tracking-wider">基本種目推移</h2>
                 <div class="space-y-2">
                     <div class="bg-gray-800 border border-gray-700 rounded-xl p-3 shadow space-y-0.5">
                         <div id="pickupPush" class="space-y-0.5 text-xs"><div class="text-white">PUSH (ベンチプレス) : データなし</div></div>
@@ -110,14 +118,6 @@
                         <div id="pickupOther" class="space-y-0.5 text-xs"><div class="text-white">OTHER (レッグレイズ) : データなし</div></div>
                     </div>
                 </div>
-            </div>
-        </div>
-
-        <!-- サブコンテンツ2：履歴 -->
-        <div id="subTabContentHistory" class="space-y-4 hidden">
-            <div id="workoutList" class="space-y-3"></div>
-            <div id="emptyMessage" class="text-center text-gray-500 py-10 hidden">
-                記録がまだありません。
             </div>
         </div>
     </div>
@@ -136,14 +136,14 @@
         </div>
 
         <div class="space-y-3">
-            <h2 class="text-sm font-semibold text-gray-400 uppercase tracking-wider">今月(先月)合計</h2>
+            <h2 class="text-sm font-semibold text-orange-400 uppercase tracking-wider">今月(先月)合計</h2>
             <div class="bg-gray-800 border border-gray-700 rounded-xl p-3.5 shadow">
                 <div id="monthlyCardioSummary" class="text-[11px] text-white font-bold font-mono tracking-tight">回数: 0(0)回 / 時間: 0(0)分 / 消費: 約0(0)kcal</div>
             </div>
         </div>
 
         <div class="space-y-4">
-            <h2 class="text-sm font-semibold text-gray-400 uppercase tracking-wider">履歴</h2>
+            <h2 class="text-sm font-semibold text-orange-400 uppercase tracking-wider">履歴</h2>
             <div id="cardioList" class="space-y-3"></div>
             <div id="emptyCardioMessage" class="text-center text-gray-500 py-10 hidden">
                 有酸素の記録がまだありません。
@@ -154,7 +154,7 @@
     <!-- ================= 3. 設定タブ ================= -->
     <div id="tabContentSettings" class="space-y-6 hidden">
         <div class="bg-gray-800 border border-gray-700 rounded-2xl p-4 shadow-lg space-y-4">
-            <h2 class="text-sm font-semibold text-gray-200 uppercase tracking-wider">バックアップ出力・復元</h2>
+            <h2 class="text-sm font-semibold text-orange-400 uppercase tracking-wider">バックアップ出力・復元</h2>
             <div class="space-y-2 pt-2">
                 <button type="button" onclick="exportData()" class="w-full bg-gray-900 hover:bg-gray-700 text-gray-200 py-3 rounded-xl border border-gray-700 text-xs font-bold transition">
                     出力 (JSON)
@@ -180,13 +180,13 @@
                 const rawSets = item.setList || [];
                 if (Array.isArray(rawSets)) {
                     setList = rawSets.map(set => ({
-                        weight: Number(set.weight !== undefined ? set.weight : set.体重) || 0,
-                        reps: Number(set.reps !== undefined ? set.reps : set.回数) || 0
+                        weight: Number(set.weight) || 0,
+                        reps: Number(set.reps) || 0
                     }));
                 }
                 uniqueMap.set(id, {
                     id: String(id),
-                    name: String(item.name || item.名前 || '不明な種目'),
+                    name: String(item.name || '不明な種目'),
                     dateStr: String(item.dateStr || '2026-01-01'),
                     setList: setList
                 });
@@ -479,7 +479,7 @@
             
             document.getElementById('formHeaderContainer').innerHTML = `
                 <div class="flex justify-between items-center mb-4">
-                    <h2 class="text-sm font-semibold text-gray-200 uppercase tracking-wider">編集中</h2>
+                    <h2 class="text-sm font-semibold text-orange-400 uppercase tracking-wider">編集中</h2>
                     <button type="button" onclick="cancelEdit()" class="text-xs text-gray-400 hover:text-white">キャンセル</button>
                 </div>
             `;
@@ -643,7 +643,7 @@
                                 <div class="flex items-center gap-2">
                                     <span class="text-xs text-gray-400 ex-toggle-icon">▼</span>
                                     <button type="button" onclick="event.stopPropagation(); editWorkout('${item.id}')" class="text-xs text-gray-400 hover:text-white px-2 py-1 bg-gray-800 border border-gray-700 rounded-lg font-medium">編集</button>
-                                    <button type="button" onclick="event.stopPropagation(); deleteWorkout('${item.id}')" class="text-500 hover:text-red-400 p-1">✕</button>
+                                    <button type="button" onclick="event.stopPropagation(); deleteWorkout('${item.id}')" class="text-gray-500 hover:text-red-400 p-1">✕</button>
                                 </div>
                             </div>
                             <div class="ex-content hidden mt-2 pt-2 border-t border-gray-800 space-y-1">
