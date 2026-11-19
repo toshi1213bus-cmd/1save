@@ -6,7 +6,7 @@
   --surface: #131314;
   --line: #2a2a2c;
   --text: #ece8dd;
-  --muted: #8a8578;
+  --muted: #b8b2a2;
   --gold: #c9a96a;
   --gold-hi: #dcc28a;
   --gold-lo: #b08f55;
@@ -80,7 +80,7 @@ body select {
   color: var(--text);
 }
 body input::placeholder,
-body textarea::placeholder { color: #4d4b47; }
+body textarea::placeholder { color: #918d82; }
 body .focus\:border-orange-500:focus,
 body input:focus,
 body textarea:focus,
