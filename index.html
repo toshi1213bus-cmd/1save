@@ -18,7 +18,7 @@
             有酸素
         </button>
         <button type="button" onclick="switchTab('settings')" id="tabBtnSettings" class="flex-1 py-2.5 text-xs font-bold rounded-xl text-gray-400 hover:text-white transition">
-            設定
+            比較/設定
         </button>
     </div>
 
@@ -81,7 +81,7 @@
                     履歴
                 </button>
                 <button type="button" onclick="switchWorkoutSubTab('stats')" id="subTabBtnStats" class="flex-1 py-2 text-xs font-bold rounded-xl text-gray-400 hover:text-white transition">
-                    今(先月)合計/推移
+                    今月合計/推移
                 </button>
             </div>
 
@@ -96,11 +96,11 @@
                 </div>
             </div>
 
-            <!-- サブコンテンツ2：今(先月)合計/推移 -->
+            <!-- サブコンテンツ2：今月合計/推移 -->
             <div id="subTabContentStats" class="hidden">
                 <!-- 切り替えカード直下の合計（横線なし） -->
                 <div class="p-3.5">
-                    <div id="monthlyWorkoutSummary" class="text-[11px] text-white font-bold tracking-tight">Push: 0(0)回 / Pull: 0(0)回 / Legs: 0(0)回 / Other: 0(0)回</div>
+                    <div id="monthlyWorkoutSummary" class="text-[11px] text-white font-bold tracking-tight">Push: 0回 / Pull: 0回 / Leg: 0回 / Other: 0回</div>
                 </div>
                 <!-- 合計と基本種目推移の間（横線あり） -->
                 <div class="divide-y divide-gray-700 border-t border-gray-700">
@@ -135,10 +135,10 @@
         </div>
 
         <div class="space-y-2.5">
-            <h2 class="text-sm font-semibold text-orange-400 uppercase tracking-wider">今(先月)合計</h2>
+            <h2 class="text-sm font-semibold text-orange-400 uppercase tracking-wider">今月合計</h2>
             <div class="bg-gray-800 border border-gray-700 rounded-2xl shadow overflow-hidden">
                 <div class="p-3.5">
-                    <div id="monthlyCardioSummary" class="text-[11px] text-white font-bold tracking-tight">回数: 0(0)回 / 時間: 0(0)分 / 消費: 約0(0)kcal</div>
+                    <div id="monthlyCardioSummary" class="text-[11px] text-white font-bold tracking-tight">回数: 0回 / 時間: 0分 / 消費: 約0kcal</div>
                 </div>
                 <div id="cardioListWrapper" class="border-t border-gray-700 hidden">
                     <div id="cardioList" class="divide-y divide-gray-700"></div>
@@ -151,10 +151,18 @@
         </div>
     </div>
 
-    <!-- ================= 3. 設定タブ ================= -->
-    <div id="tabContentSettings" class="space-y-6 hidden">
+    <!-- ================= 3. 比較/設定タブ ================= -->
+    <div id="tabContentSettings" class="space-y-5 hidden">
+        <div class="bg-gray-800 border border-gray-700 rounded-2xl p-4 shadow-lg space-y-2.5">
+            <h2 class="text-sm font-semibold text-orange-400 uppercase tracking-wider">今月 / 先月ポイント比較</h2>
+            <div class="bg-gray-900 border border-gray-700 rounded-xl divide-y divide-gray-700">
+                <div id="compareWorkoutPoints" class="p-3 text-xs font-bold text-white">トレーニング：今月 0pt / 先月 0pt</div>
+                <div id="compareCardioPoints" class="p-3 text-xs font-bold text-white">有酸素：今月 0pt / 先月 0pt</div>
+            </div>
+        </div>
+
         <div class="bg-gray-800 border border-gray-700 rounded-2xl p-4 shadow-lg space-y-4">
-            <h2 class="text-sm font-semibold text-orange-400 uppercase tracking-wider">バックアップ出力・復元</h2>
+            <h2 class="text-sm font-semibold text-orange-400 uppercase tracking-wider">バックアップ出力/復元</h2>
             <div class="space-y-2 pt-2">
                 <button type="button" onclick="exportData()" class="w-full bg-gray-900 hover:bg-gray-700 text-gray-200 py-3 rounded-xl border border-gray-700 text-xs font-bold transition">
                     出力 (JSON)
@@ -507,7 +515,7 @@
 
         function updateMonthlyWorkoutSummary() {
             const summaryElem = document.getElementById('monthlyWorkoutSummary');
-            if (!summaryElem) return;
+            const compareWorkoutElem = document.getElementById('compareWorkoutPoints');
 
             const now = new Date();
             const currentYearMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
@@ -516,19 +524,27 @@
             const lastYearMonth = `${lastMonthDate.getFullYear()}-${String(lastMonthDate.getMonth() + 1).padStart(2, '0')}`;
 
             let counts = { PUSH: 0, PULL: 0, LEGS: 0, OTHER: 0 };
-            let lastCounts = { PUSH: 0, PULL: 0, LEGS: 0, OTHER: 0 };
+            let currentWorkoutCount = 0;
+            let lastWorkoutCount = 0;
 
             const activeDates = new Set(workouts.map(i => i.dateStr));
             activeDates.forEach(dateStr => {
                 const ppl = dayPplMap[dateStr] || 'PUSH';
                 if (dateStr.startsWith(currentYearMonth)) {
                     if (counts[ppl] !== undefined) counts[ppl]++;
+                    currentWorkoutCount++;
                 } else if (dateStr.startsWith(lastYearMonth)) {
-                    if (lastCounts[ppl] !== undefined) lastCounts[ppl]++;
+                    lastWorkoutCount++;
                 }
             });
 
-            summaryElem.textContent = `Push: ${counts.PUSH}(${lastCounts.PUSH})回 / Pull: ${counts.PULL}(${lastCounts.PULL})回 / Leg: ${counts.LEGS}(${lastCounts.LEGS})回 / Other: ${counts.OTHER}(${lastCounts.OTHER})回`;
+            if (summaryElem) {
+                summaryElem.textContent = `Push: ${counts.PUSH}回 / Pull: ${counts.PULL}回 / Leg: ${counts.LEGS}回 / Other: ${counts.OTHER}回`;
+            }
+
+            if (compareWorkoutElem) {
+                compareWorkoutElem.textContent = `トレーニング：今月 ${currentWorkoutCount}pt / 先月 ${lastWorkoutCount}pt`;
+            }
         }
         function updatePickupStats() {
             const targets = {
@@ -811,6 +827,7 @@
             const moreContainer = document.getElementById('cardioMoreContainer');
             const empty = document.getElementById('emptyCardioMessage');
             const summary = document.getElementById('monthlyCardioSummary');
+            const compareCardioElem = document.getElementById('compareCardioPoints');
             if (!list || !wrapper) return;
             list.innerHTML = '';
             if (moreContainer) moreContainer.innerHTML = '';
@@ -824,16 +841,16 @@
             const lastMonthlyItems = cardios.filter(i => i.dateStr.startsWith(lastYearMonth));
 
             const totalCount = monthlyItems.length;
-            const lastTotalCount = lastMonthlyItems.length;
-
             const totalMin = monthlyItems.reduce((sum, i) => sum + i.minutes, 0);
             const lastTotalMin = lastMonthlyItems.reduce((sum, i) => sum + i.minutes, 0);
-
             const totalKcal = Math.round(totalMin * 3.5);
-            const lastTotalKcal = Math.round(lastTotalMin * 3.5);
 
             if (summary) {
-                summary.textContent = `回数: ${totalCount}(${lastTotalCount})回 / 時間: ${totalMin}(${lastTotalMin})分 / 消費: 約${totalKcal}(${lastTotalKcal})kcal`;
+                summary.textContent = `回数: ${totalCount}回 / 時間: ${totalMin}分 / 消費: 約${totalKcal}kcal`;
+            }
+
+            if (compareCardioElem) {
+                compareCardioElem.textContent = `有酸素：今月 ${totalMin}pt / 先月 ${lastTotalMin}pt`;
             }
 
             if (cardios.length === 0) {
