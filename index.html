@@ -25,9 +25,9 @@
     <!-- ================= 1. トレーニング記録タブ ================= -->
     <div id="tabContentWorkout" class="space-y-5">
         
-        <!-- インターバルタイマー（縦2段・大型化・常駐） -->
+        <!-- インターバルタイマー（常駐） -->
         <div class="bg-gray-800 border border-gray-700 rounded-2xl p-4 shadow-md space-y-3">
-            <div class="flex items-center justify-center gap-2 font-mono text-xl font-bold text-orange-400">
+            <div class="flex items-center justify-center gap-2 text-xl font-bold text-orange-400">
                 <span>⏱</span>
                 <span id="timerDisplay">00:00</span>
             </div>
@@ -83,38 +83,39 @@
             </button>
         </div>
 
-        <!-- サブコンテンツ1：履歴（初期表示） -->
+        <!-- サブコンテンツ1：履歴（リスト形式・外枠のみ角丸） -->
         <div id="subTabContentHistory" class="space-y-4">
-            <div id="workoutList" class="space-y-3"></div>
+            <div id="workoutListWrapper" class="bg-gray-800 border border-gray-700 rounded-2xl shadow overflow-hidden hidden">
+                <div id="workoutList" class="divide-y divide-gray-700"></div>
+            </div>
+            <div id="workoutMoreContainer"></div>
             <div id="emptyMessage" class="text-center text-gray-500 py-10 hidden">
                 記録がまだありません。
             </div>
         </div>
 
-        <!-- サブコンテンツ2：合計 / 推移（非表示スタート） -->
+        <!-- サブコンテンツ2：合計 / 推移（リスト形式・外枠のみ角丸） -->
         <div id="subTabContentStats" class="space-y-5 hidden">
-            <!-- 1行スマート「今月(先月)合計」 -->
             <div class="space-y-2.5">
                 <h2 class="text-sm font-semibold text-orange-400 uppercase tracking-wider">今月(先月)合計</h2>
                 <div class="bg-gray-800 border border-gray-700 rounded-xl p-3.5 shadow">
-                    <div id="monthlyWorkoutSummary" class="text-[11px] text-white font-bold font-mono tracking-tight">Push: 0(0)回 / Pull: 0(0)回 / Leg: 0(0)回 / Other: 0(0)回</div>
+                    <div id="monthlyWorkoutSummary" class="text-[11px] text-white font-bold tracking-tight">Push: 0(0)回 / Pull: 0(0)回 / Legs: 0(0)回 / Other: 0(0)回</div>
                 </div>
             </div>
 
-            <!-- 基本種目推移 -->
             <div class="space-y-3">
                 <h2 class="text-sm font-semibold text-orange-400 uppercase tracking-wider">基本種目推移</h2>
-                <div class="space-y-2">
-                    <div class="bg-gray-800 border border-gray-700 rounded-xl p-3 shadow space-y-0.5">
+                <div class="bg-gray-800 border border-gray-700 rounded-2xl shadow overflow-hidden divide-y divide-gray-700">
+                    <div class="p-3.5 space-y-0.5">
                         <div id="pickupPush" class="space-y-0.5 text-xs"><div class="text-white">PUSH (ベンチプレス) : データなし</div></div>
                     </div>
-                    <div class="bg-gray-800 border border-gray-700 rounded-xl p-3 shadow space-y-0.5">
+                    <div class="p-3.5 space-y-0.5">
                         <div id="pickupPull" class="space-y-0.5 text-xs"><div class="text-white">PULL (ワイドラット) : データなし</div></div>
                     </div>
-                    <div class="bg-gray-800 border border-gray-700 rounded-xl p-3 shadow space-y-0.5">
+                    <div class="p-3.5 space-y-0.5">
                         <div id="pickupLegs" class="space-y-0.5 text-xs"><div class="text-white">LEGS (ブルガリアン) : データなし</div></div>
                     </div>
-                    <div class="bg-gray-800 border border-gray-700 rounded-xl p-3 shadow space-y-0.5">
+                    <div class="p-3.5 space-y-0.5">
                         <div id="pickupOther" class="space-y-0.5 text-xs"><div class="text-white">OTHER (レッグレイズ) : データなし</div></div>
                     </div>
                 </div>
@@ -138,13 +139,16 @@
         <div class="space-y-3">
             <h2 class="text-sm font-semibold text-orange-400 uppercase tracking-wider">今月(先月)合計</h2>
             <div class="bg-gray-800 border border-gray-700 rounded-xl p-3.5 shadow">
-                <div id="monthlyCardioSummary" class="text-[11px] text-white font-bold font-mono tracking-tight">回数: 0(0)回 / 時間: 0(0)分 / 消費: 約0(0)kcal</div>
+                <div id="monthlyCardioSummary" class="text-[11px] text-white font-bold tracking-tight">回数: 0(0)回 / 時間: 0(0)分 / 消費: 約0(0)kcal</div>
             </div>
         </div>
 
         <div class="space-y-4">
             <h2 class="text-sm font-semibold text-orange-400 uppercase tracking-wider">履歴</h2>
-            <div id="cardioList" class="space-y-3"></div>
+            <div id="cardioListWrapper" class="bg-gray-800 border border-gray-700 rounded-2xl shadow overflow-hidden hidden">
+                <div id="cardioList" class="divide-y divide-gray-700"></div>
+            </div>
+            <div id="cardioMoreContainer"></div>
             <div id="emptyCardioMessage" class="text-center text-gray-500 py-10 hidden">
                 有酸素の記録がまだありません。
             </div>
@@ -162,13 +166,14 @@
             </div>
             <div class="space-y-2 pt-4 border-t border-gray-700">
                 <textarea id="importText" rows="4" placeholder="JSON貼り付け" 
-                    class="w-full bg-gray-900 border border-gray-700 rounded-xl p-3 text-xs text-white font-mono focus:outline-none focus:border-orange-500"></textarea>
+                    class="w-full bg-gray-900 border border-gray-700 rounded-xl p-3 text-xs text-white focus:outline-none focus:border-orange-500"></textarea>
                 <button type="button" onclick="importFromJsonText()" class="w-full bg-gray-900 hover:bg-gray-700 text-gray-200 py-3 rounded-xl border border-gray-700 text-xs font-bold transition">
                     復元実行
                 </button>
             </div>
         </div>
     </div>
+
     <script>
         function sanitizeWorkouts(rawWorkouts) {
             if (!Array.isArray(rawWorkouts)) return [];
@@ -492,6 +497,7 @@
             window.scrollTo({ top: 0, behavior: 'smooth' });
             document.getElementById('exerciseName').focus();
         }
+
         function formatDate(dateStr) {
             const [y, m, d] = dateStr.split('-');
             return `${parseInt(m)}/${parseInt(d)}`;
@@ -528,7 +534,6 @@
 
             summaryElem.textContent = `Push: ${counts.PUSH}(${lastCounts.PUSH})回 / Pull: ${counts.PULL}(${lastCounts.PULL})回 / Leg: ${counts.LEGS}(${lastCounts.LEGS})回 / Other: ${counts.OTHER}(${lastCounts.OTHER})回`;
         }
-
         function updatePickupStats() {
             const targets = {
                 pickupPush: { label: 'PUSH最新負荷量', name: 'ベンチプレス', type: 'weight' },
@@ -564,26 +569,31 @@
                 const latestVal = values[values.length - 1];
                 const trendStr = values.join(' ➔ ');
                 container.innerHTML = `
-                    <div class="text-gray-300 font-bold">${config.label}：<span class="font-mono text-white">${latestVal}</span></div>
-                    <div class="text-white font-mono text-[11px] break-all">${trendStr}</div>
+                    <div class="text-gray-300 font-bold">${config.label}：<span class="text-white">${latestVal}</span></div>
+                    <div class="text-white text-[11px] break-all">${trendStr}</div>
                 `;
             }
         }
 
         function renderWorkouts() {
+            const wrapper = document.getElementById('workoutListWrapper');
             const list = document.getElementById('workoutList');
+            const moreContainer = document.getElementById('workoutMoreContainer');
             const empty = document.getElementById('emptyMessage');
-            if (!list) return;
+            if (!list || !wrapper) return;
             list.innerHTML = '';
+            if (moreContainer) moreContainer.innerHTML = '';
 
             updateMonthlyWorkoutSummary();
 
             if (workouts.length === 0) {
+                wrapper.classList.add('hidden');
                 if (empty) empty.classList.remove('hidden');
                 updatePickupStats();
                 renderCardios();
                 return;
             }
+            wrapper.classList.remove('hidden');
             if (empty) empty.classList.add('hidden');
 
             const grouped = {};
@@ -604,14 +614,14 @@
                 const formattedVolume = Math.round(totalVolume).toLocaleString();
                 const currentPpl = dayPplMap[dateStr] || 'PUSH';
 
-                const card = document.createElement('div');
-                card.className = 'bg-gray-800 border border-gray-700 rounded-2xl p-4 shadow';
+                const row = document.createElement('div');
+                row.className = 'p-4';
 
                 let header = `
                     <div class="flex justify-between items-center cursor-pointer select-none" onclick="toggleDayAccordion(this)">
                         <div class="flex items-center gap-2.5 flex-wrap">
                             <span class="text-sm font-bold text-orange-400">${formatDate(dateStr)}</span>
-                            <span class="text-xs text-white font-mono font-bold">総負荷: <span class="font-mono text-white">${formattedVolume}</span>kg</span>
+                            <span class="text-xs text-white font-bold">総負荷: <span class="text-white">${formattedVolume}</span>kg</span>
                             <select onclick="event.stopPropagation()" onchange="updateDayPpl('${dateStr}', this)" class="text-xs bg-gray-900 border border-gray-700 text-gray-200 font-bold rounded-lg px-2 py-1 focus:outline-none focus:border-orange-500">
                                 <option value="PUSH" ${currentPpl === 'PUSH' ? 'selected' : ''}>PUSH</option>
                                 <option value="PULL" ${currentPpl === 'PULL' ? 'selected' : ''}>PULL</option>
@@ -628,8 +638,8 @@
                     const setsHtml = item.setList.map((s, idx) => `
                         <div class="text-xs text-gray-300 font-semibold flex items-center gap-2">
                             <span class="text-gray-500 w-4">${idx + 1}.</span>
-                            <span class="text-white font-mono">${s.weight} kg</span> × 
-                            <span class="text-white font-mono">${s.reps} 回</span>
+                            <span class="text-white">${s.weight} kg</span> × 
+                            <span class="text-white">${s.reps} 回</span>
                         </div>
                     `).join('');
 
@@ -654,17 +664,17 @@
                 });
                 body += '</div>';
 
-                card.innerHTML = header + body;
-                list.appendChild(card);
+                row.innerHTML = header + body;
+                list.appendChild(row);
             });
 
-            if (sortedDates.length > visibleDaysCount) {
+            if (sortedDates.length > visibleDaysCount && moreContainer) {
                 const moreBtn = document.createElement('button');
                 moreBtn.type = 'button';
                 moreBtn.onclick = loadMoreDays;
                 moreBtn.className = 'w-full py-3 bg-gray-800 hover:bg-gray-700 text-gray-200 text-sm font-bold rounded-xl border border-gray-700 shadow transition active:scale-[0.98]';
                 moreBtn.textContent = '＋';
-                list.appendChild(moreBtn);
+                moreContainer.appendChild(moreBtn);
             }
 
             updatePickupStats();
@@ -800,11 +810,14 @@
         }
 
         function renderCardios() {
+            const wrapper = document.getElementById('cardioListWrapper');
             const list = document.getElementById('cardioList');
+            const moreContainer = document.getElementById('cardioMoreContainer');
             const empty = document.getElementById('emptyCardioMessage');
             const summary = document.getElementById('monthlyCardioSummary');
-            if (!list) return;
+            if (!list || !wrapper) return;
             list.innerHTML = '';
+            if (moreContainer) moreContainer.innerHTML = '';
 
             const now = new Date();
             const currentYearMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
@@ -828,9 +841,11 @@
             }
 
             if (cardios.length === 0) {
+                wrapper.classList.add('hidden');
                 if (empty) empty.classList.remove('hidden');
                 return;
             }
+            wrapper.classList.remove('hidden');
             if (empty) empty.classList.add('hidden');
 
             const sortedDates = [...new Set(cardios.map(i => i.dateStr))].sort((a, b) => new Date(b) - new Date(a));
@@ -842,24 +857,24 @@
 
                 const dayKcal = Math.round(dayCardio.minutes * 3.5);
                 const div = document.createElement('div');
-                div.className = 'bg-gray-800 border border-gray-700 rounded-xl p-3 flex justify-between items-center shadow';
+                div.className = 'p-3.5 flex justify-between items-center';
                 div.innerHTML = `
                     <div class="flex items-center gap-2.5">
                         <span class="text-sm font-bold text-orange-400">${formatDate(dateStr)}</span>
-                        <span class="text-xs text-white font-mono">${dayCardio.minutes}分 / 約${dayKcal}kcal</span>
+                        <span class="text-xs text-white">${dayCardio.minutes}分 / 約${dayKcal}kcal</span>
                     </div>
                     <button type="button" onclick="deleteCardio('${dayCardio.id}')" class="text-gray-500 hover:text-red-400 p-1">✕</button>
                 `;
                 list.appendChild(div);
             });
 
-            if (sortedDates.length > visibleCardioDaysCount) {
+            if (sortedDates.length > visibleCardioDaysCount && moreContainer) {
                 const moreBtn = document.createElement('button');
                 moreBtn.type = 'button';
                 moreBtn.onclick = loadMoreCardioDays;
                 moreBtn.className = 'w-full py-3 bg-gray-800 hover:bg-gray-700 text-gray-200 text-sm font-bold rounded-xl border border-gray-700 shadow transition active:scale-[0.98]';
                 moreBtn.textContent = '＋';
-                list.appendChild(moreBtn);
+                moreContainer.appendChild(moreBtn);
             }
         }
 
