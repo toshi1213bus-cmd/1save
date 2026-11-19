@@ -121,3 +121,33 @@ body .text-sm.font-bold.text-orange-400 {
 /* ---- スクロールバー ---- */
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-thumb { background: #2a2a2c; border-radius: 3px; }
+
+/* ---- 操作できる場所を細い金枠で明示 ---- */
+:root { --gold-line: rgba(201,169,106,.6); }
+
+/* 入力欄（種目名・kg・回・貼り付け欄） */
+body input.border,
+body textarea.border {
+  border-color: var(--gold-line);
+}
+body input.border:focus,
+body textarea.border:focus {
+  border-color: var(--gold);
+  box-shadow: 0 0 0 1px var(--gold);
+}
+
+/* 有酸素の分入力・セット追加/保存のまとまり */
+body div.bg-gray-900.border.overflow-hidden {
+  border-color: var(--gold-line);
+}
+
+/* タイマー（3分/2分/1分/✕）・出力・復元実行などのボタン */
+body button.bg-gray-900.border {
+  border-color: var(--gold-line);
+  color: var(--gold);
+  letter-spacing: 0.15em;
+}
+body button.bg-gray-900.border:hover {
+  border-color: var(--gold);
+  background: #1a1a1c;
+}
