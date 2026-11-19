@@ -73,39 +73,37 @@
             </button>
         </div>
 
-        <!-- サブタブ切り替えバー（左：履歴 ⇄ 右：合計 / 推移） -->
-        <div class="flex bg-gray-800 border border-gray-700 rounded-2xl p-1 shadow-md">
-            <button type="button" onclick="switchWorkoutSubTab('history')" id="subTabBtnHistory" class="flex-1 py-2 text-xs font-bold rounded-xl text-orange-400 bg-gray-900 shadow transition">
-                履歴
-            </button>
-            <button type="button" onclick="switchWorkoutSubTab('stats')" id="subTabBtnStats" class="flex-1 py-2 text-xs font-bold rounded-xl text-gray-400 hover:text-white transition">
-                合計 / 推移
-            </button>
-        </div>
-
-        <!-- サブコンテンツ1：履歴（リスト形式・外枠のみ角丸） -->
-        <div id="subTabContentHistory" class="space-y-4">
-            <div id="workoutListWrapper" class="bg-gray-800 border border-gray-700 rounded-2xl shadow overflow-hidden hidden">
-                <div id="workoutList" class="divide-y divide-gray-700"></div>
+        <!-- サブタブ切り替えバー＋下部コンテンツ密着グループ -->
+        <div class="bg-gray-800 border border-gray-700 rounded-2xl shadow-md overflow-hidden">
+            <!-- サブタブ切り替えバー -->
+            <div class="flex bg-gray-800 p-1">
+                <button type="button" onclick="switchWorkoutSubTab('history')" id="subTabBtnHistory" class="flex-1 py-2 text-xs font-bold rounded-xl text-orange-400 bg-gray-900 shadow transition">
+                    履歴
+                </button>
+                <button type="button" onclick="switchWorkoutSubTab('stats')" id="subTabBtnStats" class="flex-1 py-2 text-xs font-bold rounded-xl text-gray-400 hover:text-white transition">
+                    今(先月)合計/推移
+                </button>
             </div>
-            <div id="workoutMoreContainer"></div>
-            <div id="emptyMessage" class="text-center text-gray-500 py-10 hidden">
-                記録がまだありません。
-            </div>
-        </div>
 
-        <!-- サブコンテンツ2：合計 / 推移（リスト形式・外枠のみ角丸） -->
-        <div id="subTabContentStats" class="space-y-5 hidden">
-            <div class="space-y-2.5">
-                <h2 class="text-sm font-semibold text-orange-400 uppercase tracking-wider">今月(先月)合計</h2>
-                <div class="bg-gray-800 border border-gray-700 rounded-xl p-3.5 shadow">
-                    <div id="monthlyWorkoutSummary" class="text-[11px] text-white font-bold tracking-tight">Push: 0(0)回 / Pull: 0(0)回 / Legs: 0(0)回 / Other: 0(0)回</div>
+            <!-- サブコンテンツ1：履歴 -->
+            <div id="subTabContentHistory">
+                <div id="workoutListWrapper" class="hidden">
+                    <div id="workoutList" class="divide-y divide-gray-700"></div>
+                    <div id="workoutMoreContainer"></div>
+                </div>
+                <div id="emptyMessage" class="text-center text-gray-500 py-10 hidden">
+                    記録がまだありません。
                 </div>
             </div>
 
-            <div class="space-y-3">
-                <h2 class="text-sm font-semibold text-orange-400 uppercase tracking-wider">基本種目推移</h2>
-                <div class="bg-gray-800 border border-gray-700 rounded-2xl shadow overflow-hidden divide-y divide-gray-700">
+            <!-- サブコンテンツ2：今(先月)合計/推移 -->
+            <div id="subTabContentStats" class="hidden">
+                <!-- 切り替えカード直下の合計（横線なし） -->
+                <div class="p-3.5">
+                    <div id="monthlyWorkoutSummary" class="text-[11px] text-white font-bold tracking-tight">Push: 0(0)回 / Pull: 0(0)回 / Legs: 0(0)回 / Other: 0(0)回</div>
+                </div>
+                <!-- 合計と基本種目推移の間（横線あり） -->
+                <div class="divide-y divide-gray-700 border-t border-gray-700">
                     <div class="p-3.5 space-y-0.5">
                         <div id="pickupPush" class="space-y-0.5 text-xs"><div class="text-white">PUSH (ベンチプレス) : データなし</div></div>
                     </div>
@@ -124,7 +122,7 @@
     </div>
 
     <!-- ================= 2. 有酸素タブ ================= -->
-    <div id="tabContentCardio" class="space-y-6 hidden">
+    <div id="tabContentCardio" class="space-y-5 hidden">
         <div class="bg-gray-800 border border-gray-700 rounded-2xl p-4 shadow-lg space-y-4">
             <div>
                 <label class="block text-xs text-gray-400 mb-1">時間 (分)</label>
@@ -136,19 +134,17 @@
             </button>
         </div>
 
-        <div class="space-y-3">
-            <h2 class="text-sm font-semibold text-orange-400 uppercase tracking-wider">今月(先月)合計</h2>
-            <div class="bg-gray-800 border border-gray-700 rounded-xl p-3.5 shadow">
-                <div id="monthlyCardioSummary" class="text-[11px] text-white font-bold tracking-tight">回数: 0(0)回 / 時間: 0(0)分 / 消費: 約0(0)kcal</div>
+        <div class="space-y-2.5">
+            <h2 class="text-sm font-semibold text-orange-400 uppercase tracking-wider">今(先月)合計</h2>
+            <div class="bg-gray-800 border border-gray-700 rounded-2xl shadow overflow-hidden">
+                <div class="p-3.5">
+                    <div id="monthlyCardioSummary" class="text-[11px] text-white font-bold tracking-tight">回数: 0(0)回 / 時間: 0(0)分 / 消費: 約0(0)kcal</div>
+                </div>
+                <div id="cardioListWrapper" class="border-t border-gray-700 hidden">
+                    <div id="cardioList" class="divide-y divide-gray-700"></div>
+                    <div id="cardioMoreContainer"></div>
+                </div>
             </div>
-        </div>
-
-        <div class="space-y-4">
-            <h2 class="text-sm font-semibold text-orange-400 uppercase tracking-wider">履歴</h2>
-            <div id="cardioListWrapper" class="bg-gray-800 border border-gray-700 rounded-2xl shadow overflow-hidden hidden">
-                <div id="cardioList" class="divide-y divide-gray-700"></div>
-            </div>
-            <div id="cardioMoreContainer"></div>
             <div id="emptyCardioMessage" class="text-center text-gray-500 py-10 hidden">
                 有酸素の記録がまだありません。
             </div>
@@ -672,7 +668,7 @@
                 const moreBtn = document.createElement('button');
                 moreBtn.type = 'button';
                 moreBtn.onclick = loadMoreDays;
-                moreBtn.className = 'w-full py-3 bg-gray-800 hover:bg-gray-700 text-gray-200 text-sm font-bold rounded-xl border border-gray-700 shadow transition active:scale-[0.98]';
+                moreBtn.className = 'w-full py-3 bg-gray-800 hover:bg-gray-700 text-gray-200 text-sm font-bold border-t border-gray-700 transition active:scale-[0.98]';
                 moreBtn.textContent = '＋';
                 moreContainer.appendChild(moreBtn);
             }
@@ -872,7 +868,7 @@
                 const moreBtn = document.createElement('button');
                 moreBtn.type = 'button';
                 moreBtn.onclick = loadMoreCardioDays;
-                moreBtn.className = 'w-full py-3 bg-gray-800 hover:bg-gray-700 text-gray-200 text-sm font-bold rounded-xl border border-gray-700 shadow transition active:scale-[0.98]';
+                moreBtn.className = 'w-full py-3 bg-gray-800 hover:bg-gray-700 text-gray-200 text-sm font-bold border-t border-gray-700 transition active:scale-[0.98]';
                 moreBtn.textContent = '＋';
                 moreContainer.appendChild(moreBtn);
             }
