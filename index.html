@@ -15,13 +15,13 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-title" content="PPL">
 </head>
-<body class="bg-gray-900 text-gray-100 min-h-screen p-4 pb-24 max-w-md mx-auto space-y-4">
+<body class="bg-gray-900 text-gray-100 min-h-screen pb-24 max-w-md mx-auto">
 
     <!-- ================= 0. ホームタブ（extras.js が描画） ================= -->
-    <div id="tabContentHome" class="space-y-4"></div>
+    <div id="tabContentHome"></div>
 
     <!-- ================= 1. トレーニング記録タブ ================= -->
-    <div id="tabContentWorkout" class="space-y-2 hidden">
+    <div id="tabContentWorkout" class="hidden">
 
         <!-- タイマー＋入力フォーム（1枚のカード） -->
         <div class="bg-gray-800 border border-gray-700 rounded-2xl shadow-lg">
@@ -89,37 +89,33 @@
     </div>
 
     <!-- ================= 2. 有酸素タブ ================= -->
-    <div id="tabContentCardio" class="space-y-4 hidden">
-        <div class="bg-gray-800 border border-gray-700 rounded-2xl p-3.5 shadow-lg">
-            <label class="block text-xs text-gray-400 mb-0.5">時間 (分)</label>
-            <div class="bg-gray-900 border border-gray-700 rounded-xl overflow-hidden">
-                <input type="number" id="cardioMinutes" placeholder="入力" inputmode="numeric"
-                    class="w-full bg-gray-900 px-4 py-3 text-white text-center focus:outline-none">
-                <button type="button" onclick="saveCardio()" class="w-full bg-orange-500 hover:bg-orange-600 text-white font-bold py-3.5 border-t border-gray-700 transition active:scale-[0.98]">
-                    保存
-                </button>
-            </div>
-        </div>
-
-        <div class="space-y-2.5">
-            <h2 class="text-sm font-semibold text-orange-400 uppercase tracking-wider">今月合計</h2>
-            <div class="bg-gray-800 border border-gray-700 rounded-2xl shadow overflow-hidden">
-                <div class="p-3.5">
-                    <div id="monthlyCardioSummary" class="text-xs text-white font-bold tracking-tight">回数: 0回 / 時間: 0分 / 消費: 約0kcal</div>
-                </div>
-                <div id="cardioListWrapper" class="border-t border-gray-700 hidden">
-                    <div id="cardioList" class="divide-y divide-gray-700"></div>
-                    <div id="cardioMoreContainer"></div>
+    <div id="tabContentCardio" class="hidden">
+        <div class="bg-gray-800 border border-gray-700 rounded-2xl">
+            <div class="p-3.5">
+                <label class="block text-xs text-gray-400 mb-0.5">時間 (分)</label>
+                <div class="bg-gray-900 border border-gray-700 rounded-xl overflow-hidden">
+                    <input type="number" id="cardioMinutes" placeholder="入力" inputmode="numeric"
+                        class="w-full bg-gray-900 px-4 py-3 text-white text-center focus:outline-none">
+                    <button type="button" onclick="saveCardio()" class="w-full bg-orange-500 hover:bg-orange-600 text-white font-bold py-3.5 border-t border-gray-700 transition active:scale-[0.98]">
+                        保存
+                    </button>
                 </div>
             </div>
-            <div id="emptyCardioMessage" class="text-center text-gray-500 py-10 hidden">
+            <div class="p-3.5 card-sep">
+                <div id="monthlyCardioSummary" class="text-xs text-white font-bold tracking-tight">今月合計: 0分 / 約0kcal</div>
+            </div>
+            <div id="cardioListWrapper" class="card-sep hidden">
+                <div id="cardioList" class="divide-y divide-gray-700"></div>
+                <div id="cardioMoreContainer"></div>
+            </div>
+            <div id="emptyCardioMessage" class="card-sep text-center text-gray-500 py-10 hidden">
                 有酸素の記録がまだありません。
             </div>
         </div>
     </div>
 
     <!-- ================= 3. 月間/設定タブ ================= -->
-    <div id="tabContentSettings" class="space-y-4 hidden">
+    <div id="tabContentSettings" class="hidden">
         <div id="calendarCard" class="bg-gray-800 border border-gray-700 rounded-2xl p-3.5 shadow-lg"></div>
 
         <div class="bg-gray-800 border border-gray-700 rounded-2xl p-3.5 shadow-lg space-y-2.5">
@@ -128,6 +124,12 @@
                 <div id="compareWorkoutPoints" class="p-3 text-xs font-bold text-white">トレ：今月 0pt / 先月 0pt</div>
                 <div id="compareCardioPoints" class="p-3 text-xs font-bold text-white">有酸素：今月 0pt / 先月 0pt</div>
             </div>
+        </div>
+
+        <div class="bg-gray-800 border border-gray-700 rounded-2xl p-3.5 space-y-2.5">
+            <h2 class="text-sm font-semibold text-orange-400 uppercase tracking-wider">種目の編集</h2>
+            <div id="menuSummary"></div>
+            <button type="button" onclick="openMenuEditor()" class="hm-go alt">編集</button>
         </div>
 
         <div class="bg-gray-800 border border-gray-700 rounded-2xl p-3.5 shadow-lg space-y-3">
@@ -156,24 +158,64 @@
     </nav>
 
     <script>
+        const ID_RE = /^[A-Za-z0-9._-]{1,40}$/;
+        const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+        const PPL_TYPES = ['PUSH', 'PULL', 'LEGS', 'OTHER'];
+        let storageWarn = false;
+
+        /* 保存データの読み込み：壊れていても起動できる（壊れた中身は「キー名_broken」に退避） */
+        function loadJson(key, fallback) {
+            const raw = localStorage.getItem(key);
+            if (raw === null) return fallback;
+            try {
+                const v = JSON.parse(raw);
+                return v === null ? fallback : v;
+            } catch (e) {
+                storageWarn = true;
+                try { localStorage.setItem(key + '_broken', raw); } catch (e2) {}
+                return fallback;
+            }
+        }
+
+        /* 値の検証：IDは英数字のみ、日付はYYYY-MM-DD、数値は0以上の有限値 */
+        function cleanId(v) {
+            const s = String(v == null ? '' : v);
+            return ID_RE.test(s) ? s : String(Date.now()) + String(Math.floor(Math.random() * 1e6));
+        }
+        function cleanDate(v) {
+            const s = String(v == null ? '' : v);
+            return DATE_RE.test(s) ? s : '2026-01-01';
+        }
+        function cleanNum(v, int) {
+            const n = Number(v);
+            if (!isFinite(n) || n < 0) return 0;
+            return int ? Math.round(n) : n;
+        }
+
+        function sanitizeDayPpl(raw) {
+            const out = {};
+            if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return out;
+            Object.keys(raw).forEach(k => {
+                if (DATE_RE.test(k) && PPL_TYPES.includes(raw[k])) out[k] = raw[k];
+            });
+            return out;
+        }
+
         function sanitizeWorkouts(rawWorkouts) {
             if (!Array.isArray(rawWorkouts)) return [];
             const uniqueMap = new Map();
             rawWorkouts.forEach(item => {
                 if (!item || typeof item !== 'object') return;
-                const id = item.id || String(Date.now() + Math.random());
-                let setList = [];
-                const rawSets = item.setList || [];
-                if (Array.isArray(rawSets)) {
-                    setList = rawSets.map(set => ({
-                        weight: Number(set.weight) || 0,
-                        reps: Number(set.reps) || 0
-                    }));
-                }
+                const id = cleanId(item.id);
+                const rawSets = Array.isArray(item.setList) ? item.setList : [];
+                const setList = rawSets.filter(s => s && typeof s === 'object').map(set => ({
+                    weight: cleanNum(set.weight),
+                    reps: cleanNum(set.reps, true)
+                }));
                 uniqueMap.set(id, {
-                    id: String(id),
+                    id: id,
                     name: String(item.name || '不明な種目'),
-                    dateStr: String(item.dateStr || '2026-01-01'),
+                    dateStr: cleanDate(item.dateStr),
                     setList: setList
                 });
             });
@@ -185,19 +227,20 @@
             const uniqueMap = new Map();
             rawCardios.forEach(item => {
                 if (!item || typeof item !== 'object') return;
-                const id = item.id || String(Date.now() + Math.random());
+                const id = cleanId(item.id);
                 uniqueMap.set(id, {
-                    id: String(id),
-                    minutes: Number(item.minutes) || 0,
-                    dateStr: String(item.dateStr || '2026-01-01')
+                    id: id,
+                    minutes: cleanNum(item.minutes, true),
+                    dateStr: cleanDate(item.dateStr)
                 });
             });
             return Array.from(uniqueMap.values());
         }
 
-        let workouts = sanitizeWorkouts(JSON.parse(localStorage.getItem('simple_workouts')) || []);
-        let cardios = sanitizeCardios(JSON.parse(localStorage.getItem('simple_cardios')) || []);
-        let dayPplMap = JSON.parse(localStorage.getItem('simple_day_ppl')) || {};
+        let workouts = sanitizeWorkouts(loadJson('simple_workouts', []));
+        let cardios = sanitizeCardios(loadJson('simple_cardios', []));
+        let dayPplMap = sanitizeDayPpl(loadJson('simple_day_ppl', {}));
+        let menuData = loadJson('simple_menu', null);
         let editingId = null;
         let visibleDaysCount = 5;
         let visibleCardioDaysCount = 5;
@@ -286,6 +329,15 @@
 
         /* タブ切り替え switchTab は extras.js に移動しました */
 
+        /* メニューで「非表示」にした種目は、入力候補に出さない（履歴のデータは残る） */
+        function isHiddenExercise(name) {
+            if (!menuData) return false;
+            const lists = Object.values(menuData);
+            const off = lists.some(m => m && Array.isArray(m.off) && m.off.includes(name));
+            const on = lists.some(m => m && Array.isArray(m.on) && m.on.includes(name));
+            return off && !on;
+        }
+
         function checkExerciseSuggestion() {
             const query = document.getElementById('exerciseName').value.trim().toLowerCase();
             const box = document.getElementById('suggestionBox');
@@ -302,6 +354,7 @@
             const seenNames = new Set();
 
             for (const workout of sortedWorkouts) {
+                if (isHiddenExercise(workout.name)) continue;
                 if (workout.name.toLowerCase().startsWith(query)) {
                     if (!seenNames.has(workout.name)) {
                         seenNames.add(workout.name);
@@ -462,7 +515,7 @@
 
             compareWorkoutElem.textContent = `トレ：今月 ${currentWorkoutCount}pt / 先月 ${lastWorkoutCount}pt`;
         }
-                function renderWorkouts() {
+        function renderWorkouts() {
             const wrapper = document.getElementById('workoutListWrapper');
             const list = document.getElementById('workoutList');
             const moreContainer = document.getElementById('workoutMoreContainer');
@@ -594,7 +647,7 @@
             rows.forEach(row => {
                 const w = parseFloat(row.querySelector('.weight-input').value);
                 const r = parseInt(row.querySelector('.reps-input').value);
-                if (!isNaN(w) && !isNaN(r)) {
+                if (isFinite(w) && w >= 0 && Number.isInteger(r) && r > 0) {
                     setList.push({ weight: w, reps: r });
                 }
             });
@@ -675,13 +728,12 @@
             const monthlyItems = cardios.filter(i => i.dateStr.startsWith(currentYearMonth));
             const lastMonthlyItems = cardios.filter(i => i.dateStr.startsWith(lastYearMonth));
 
-            const totalCount = monthlyItems.length;
             const totalMin = monthlyItems.reduce((sum, i) => sum + i.minutes, 0);
             const lastTotalMin = lastMonthlyItems.reduce((sum, i) => sum + i.minutes, 0);
             const totalKcal = Math.round(totalMin * 3.5);
 
             if (summary) {
-                summary.textContent = `回数: ${totalCount}回 / 時間: ${totalMin}分 / 消費: 約${totalKcal}kcal`;
+                summary.textContent = `今月合計: ${totalMin}分 / 約${totalKcal}kcal`;
             }
 
             if (compareCardioElem) {
@@ -730,7 +782,8 @@
             const exportObj = {
                 workouts: workouts,
                 cardios: cardios,
-                dayPplMap: dayPplMap
+                dayPplMap: dayPplMap,
+                menu: menuData
             };
             const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(exportObj));
             const a = document.createElement('a');
@@ -741,37 +794,68 @@
             a.remove();
         }
 
-        function importFromJsonText() {
+        async function importFromJsonText() {
             const text = document.getElementById('importText').value.trim();
             if (!text) {
                 alert('JSONテキストが入力されていません。');
                 return;
             }
+
+            /* 1) 先に全部検証する（ここまでは何も変更しない） */
+            let imported;
             try {
-                const imported = JSON.parse(text);
-                let rawWorkouts = [];
-                let rawCardios = [];
+                imported = JSON.parse(text);
+            } catch (err) {
+                alert('JSONの形式が正しくありません。入力内容を確認してください。');
+                return;
+            }
+            let rawWorkouts, rawCardios = [], rawPpl = {}, rawMenu = null;
+            if (Array.isArray(imported)) {
+                rawWorkouts = imported;
+            } else if (imported && typeof imported === 'object' && Array.isArray(imported.workouts)) {
+                rawWorkouts = imported.workouts;
+                rawCardios = Array.isArray(imported.cardios) ? imported.cardios : [];
+                rawPpl = imported.dayPplMap || {};
+                rawMenu = (imported.menu && typeof imported.menu === 'object') ? imported.menu : null;
+            } else {
+                alert('バックアップの形式が違います。記録は変更していません。');
+                return;
+            }
+            const newWorkouts = sanitizeWorkouts(rawWorkouts);
+            const newCardios = sanitizeCardios(rawCardios);
+            if (rawWorkouts.length > 0 && newWorkouts.length === 0) {
+                alert('読み込める記録がありませんでした。記録は変更していません。');
+                return;
+            }
 
-                if (Array.isArray(imported)) {
-                    rawWorkouts = imported;
-                } else if (imported && typeof imported === 'object') {
-                    rawWorkouts = imported.workouts || [];
-                    rawCardios = imported.cardios || [];
-                    dayPplMap = imported.dayPplMap || {};
-                }
+            /* 2) 件数を見せて確認 */
+            const msg = `トレーニング ${newWorkouts.length}件・有酸素 ${newCardios.length}件で上書きします。よろしいですか？`;
+            if (!(await askConfirm(msg, '復元'))) return;
 
-                workouts = sanitizeWorkouts(rawWorkouts);
-                cardios = sanitizeCardios(rawCardios);
-
+            /* 3) 上書き前の状態を退避し、書き込みに失敗したら元に戻す */
+            const prev = { workouts, cardios, dayPplMap, menuData };
+            try {
+                localStorage.setItem('simple_pre_restore', JSON.stringify({ workouts, cardios, dayPplMap, menu: menuData }));
+                workouts = newWorkouts;
+                cardios = newCardios;
+                dayPplMap = sanitizeDayPpl(rawPpl);
+                menuData = rawMenu;
                 localStorage.setItem('simple_workouts', JSON.stringify(workouts));
                 localStorage.setItem('simple_cardios', JSON.stringify(cardios));
                 localStorage.setItem('simple_day_ppl', JSON.stringify(dayPplMap));
+                if (menuData) localStorage.setItem('simple_menu', JSON.stringify(menuData));
+                else localStorage.removeItem('simple_menu');
                 resetForm();
                 renderWorkouts();
                 alert('データを正常に復元しました！');
                 document.getElementById('importText').value = '';
             } catch (err) {
-                alert('JSONの形式が正しくありません。入力内容を確認してください。');
+                workouts = prev.workouts;
+                cardios = prev.cardios;
+                dayPplMap = prev.dayPplMap;
+                menuData = prev.menuData;
+                renderWorkouts();
+                alert('復元に失敗しました。元のデータに戻しました。');
             }
         }
 
