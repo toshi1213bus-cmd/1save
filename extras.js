@@ -139,13 +139,14 @@
     const last = days.filter(d => d < today).pop();
     return last ? TYPES[(TYPES.indexOf(pplOf(last)) + 1) % 4] : 'PUSH';
   }
-  window.homeType = function (t) { override = { day: dstr(new Date()), type: t }; renderHome(); };
+  window.homeType = function (t) { override = { day: dstr(new Date()), type: t }; homeOpen = null; renderHome(); };
   window.homeFill = function (id) {
     if (editingId !== null) resetForm();
     switchTab('workout');
     applySuggestion(id);
   };
 
+  let homeOpen = null, homeItems = [];
   function renderHome() {
     const el = document.getElementById('tabContentHome');
     if (!el) return;
@@ -160,46 +161,67 @@
 
     const pd = days.filter(d => d < today && pplOf(d) === type).pop();
     if (!pd) {
+      homeItems = [];
       el.innerHTML = h + '<div class="hm-card"><div class="hm-pad hm-sub">まだ ' + type + ' の記録がありません。</div></div>';
       return;
     }
     const items = workouts.filter(w => w.dateStr === pd);
+    homeItems = items;
     const todays = workouts.filter(w => w.dateStr === today);
     const done = items.filter(it => todays.some(t => t.name === it.name)).length;
     h += '<div class="hm-card"><div class="hm-pad" style="padding-bottom:12px"><div class="hm-exh"><div class="hm-lb">今日のメニュー（前回 ' + fmtD(pd) +
       '）</div><div class="hm-lb hm-gold">' + done + ' / ' + items.length + ' 完了</div></div><div class="hm-prog"><div style="width:' +
       Math.round(done / items.length * 100) + '%"></div></div></div>';
-    items.forEach(it => {
+    items.forEach((it, i) => {
       const t = todays.find(x => x.name === it.name);
       const b = bestSet((t || it).setList);
       const s = series(it.name.trim());
-      h += '<div class="hm-ex"><div class="hm-exh"><div class="hm-row2"><span class="hm-chk' + (t ? ' f' : '') + '"></span><div class="hm-en' + (t ? ' dn' : '') + '">' +
-        escapeHtml(it.name) + '</div></div>' + (t ? '' : '<button type="button" class="hm-in" onclick="homeFill(\'' + it.id + '\')">入力</button>') +
-        '</div><div class="hm-mini"><div class="hm-st">' + (t ? '今日 ' : '前回 ') + (b ? fmtSet(b) : '') + '</div><div class="hm-ch">' + line(s.map(x => x.v), 110, 34) + '</div></div></div>';
+      const open = homeOpen === it.name;
+      h += '<div class="hm-ex' + (open ? ' open' : '') + '" data-i="' + i + '"><div class="hm-exh"><div class="hm-row2"><span class="hm-chk' + (t ? ' f' : '') + '"></span><div class="hm-en' + (t ? ' dn' : '') + '">' +
+        escapeHtml(it.name) + '</div></div><div class="hm-act">' + (t ? '' : '<button type="button" class="hm-in" onclick="homeFill(\'' + it.id + '\')">入力</button>') +
+        '<span class="hm-chev"></span></div></div><div class="hm-mini"><div class="hm-st">' + (t ? '今日 ' : '前回 ') + (b ? fmtSet(b) : '') +
+        '</div>' + (open ? '' : '<div class="hm-ch">' + line(s.map(x => x.v), 110, 34) + '</div>') + '</div>' +
+        (open ? '<div class="hm-big2">' + (s.length > 1 ? line(s.map(x => x.v), 320, 124, s.map(x => x.d)) : '<div class="hm-sub">2回以上の記録でグラフが出ます。</div>') + '</div>' : '') +
+        '</div>';
     });
     el.innerHTML = h + '</div>';
   }
-
-  /* ===== 推移タブ（4種目の折れ線） ===== */
-  const TR = [['PUSH', 'ベンチプレス'], ['PULL', 'ワイドラットプル'], ['LEGS', 'ブルガリアンスクワット'], ['OTHER', 'レッグレイズ']];
-  let trOpen = -1;
-  function renderTrends() {
-    const el = document.getElementById('trendList');
-    if (!el) return;
-    el.innerHTML = TR.map((t, i) => {
-      const s = series(t[1]), v = s.map(x => x.v), last = v[v.length - 1];
-      const body = i === trOpen ? '<div class="tr-big">' + (v.length > 1 ? line(v, 320, 124, s.map(x => x.d)) : '<div class="hm-sub">2回以上の記録でグラフが出ます。</div>') + '</div>' : '';
-      return '<div class="tr-row' + (i === trOpen ? ' open' : '') + '" data-i="' + i + '"><div class="tr-top"><div><div class="tr-tag">' + t[0] + '</div><div class="hm-sub">' + t[1] +
-        '</div></div><div class="tr-mini">' + line(v, 84, 30) + '</div><div class="tr-val">' + (last === undefined ? '<span class="hm-sub">データなし</span>' : last) + '</div><div class="tr-chev"></div></div>' + body + '</div>';
-    }).join('');
-  }
   document.addEventListener('click', e => {
-    const r = e.target.closest('.tr-row');
-    if (!r) return;
-    const i = parseInt(r.dataset.i, 10);
-    trOpen = trOpen === i ? -1 : i;
-    renderTrends();
+    const r = e.target.closest('.hm-ex');
+    if (!r || e.target.closest('.hm-in')) return;
+    const it = homeItems[parseInt(r.dataset.i, 10)];
+    if (!it) return;
+    homeOpen = homeOpen === it.name ? null : it.name;
+    renderHome();
   });
+
+  /* ===== カレンダー（月間/設定タブの一番上） ===== */
+  let cal = (() => { const n = new Date(); return { y: n.getFullYear(), m: n.getMonth() }; })();
+  window.calShift = function (d) {
+    const n = new Date(), t = cal.y * 12 + cal.m + d;
+    if (t > n.getFullYear() * 12 + n.getMonth()) return;
+    cal = { y: Math.floor(t / 12), m: t % 12 };
+    renderCalendar();
+  };
+  function renderCalendar() {
+    const el = document.getElementById('calendarCard');
+    if (!el) return;
+    const tDays = new Set(workouts.map(w => w.dateStr)), cDays = new Set(cardios.map(c => c.dateStr));
+    const n = new Date(), today = dstr(n);
+    const first = new Date(cal.y, cal.m, 1).getDay(), len = new Date(cal.y, cal.m + 1, 0).getDate();
+    const atCur = cal.y * 12 + cal.m >= n.getFullYear() * 12 + n.getMonth();
+    let g = '日月火水木金土'.split('').map(w => '<div class="cal-w">' + w + '</div>').join('') + '<div></div>'.repeat(first);
+    for (let d = 1; d <= len; d++) {
+      const s = cal.y + '-' + pad(cal.m + 1) + '-' + pad(d);
+      g += '<div class="cal-d' + (s === today ? ' today' : '') + '"><span>' + d + '</span><span class="cal-m">' +
+        (tDays.has(s) ? '<i class="cal-dot"></i>' : '') + (cDays.has(s) ? '<i class="cal-ring"></i>' : '') + '</span></div>';
+    }
+    el.innerHTML = '<div class="cal-head"><button type="button" onclick="calShift(-1)">‹</button><div class="cal-title">' + cal.y + '年' + (cal.m + 1) +
+      '月</div><button type="button" onclick="calShift(1)"' + (atCur ? ' disabled' : '') + '>›</button></div><div class="cal-grid">' + g +
+      '</div><div class="cal-legend"><span><i class="cal-dot"></i>トレーニング</span><span><i class="cal-ring"></i>有酸素</span></div>';
+  }
+  const cardiosInner = window.renderCardios;
+  window.renderCardios = function () { cardiosInner(); renderCalendar(); };
 
   /* ===== 今日の部位を最初の保存時に記録（ローテーション判定用） ===== */
   const saveInner = window.saveWorkout;
@@ -215,7 +237,7 @@
     }
   };
   const renderInner = window.renderWorkouts;
-  window.renderWorkouts = function () { renderInner(); renderHome(); renderTrends(); };
+  window.renderWorkouts = function () { renderInner(); renderHome(); };
 
   /* ===== 下タブ ===== */
   const TABS = { home: 'tabContentHome', workout: 'tabContentWorkout', cardio: 'tabContentCardio', settings: 'tabContentSettings' };
@@ -224,6 +246,7 @@
     Object.keys(TABS).forEach(k => document.getElementById(TABS[k]).classList.toggle('hidden', k !== name));
     document.querySelectorAll('#bottomNav button').forEach(b => b.classList.toggle('on', b.dataset.t === name));
     if (name === 'home') renderHome();
+    if (name === 'settings') renderCalendar();
     window.scrollTo(0, 0);
   };
   const isField = el => el && /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName);
