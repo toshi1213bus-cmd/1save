@@ -82,14 +82,6 @@ body #timerDisplay {
 }
 body .timer-done { animation: goldPulse 1.2s ease-in-out infinite; }
 
-/* ================= サブタブ（選択中は下に金のライン） ================= */
-body .text-orange-400.bg-gray-900 {
-  background: var(--bg);
-  color: var(--gold);
-  box-shadow: inset 0 -2px 0 var(--gold);
-  letter-spacing: 0.12em;
-}
-
 /* ================= 入力欄 ================= */
 body input,
 body textarea,
@@ -336,20 +328,33 @@ body.kb #bottomNav { display: none; }
 .hm-st { font-family: var(--num); font-size: 17px; font-weight: 500; letter-spacing: 0.04em; }
 .hm-ch { flex: none; line-height: 0; }
 
-/* ================= 推移グラフ ================= */
-.tr-row { border-top: 1px solid var(--line); padding: 14px; cursor: pointer; }
-.tr-row:first-child { border-top: 0; }
-.tr-top { display: grid; grid-template-columns: 1fr 84px 52px 12px; align-items: center; gap: 10px; }
-.tr-tag { font-size: 11px; letter-spacing: 0.2em; color: var(--gold); font-weight: 500; }
-.tr-mini { line-height: 0; }
-.tr-val { font-family: var(--num); font-size: 24px; font-weight: 500; text-align: right; line-height: 1; }
-.tr-chev { width: 7px; height: 7px; border-right: 1.5px solid var(--gold); border-bottom: 1.5px solid var(--gold); transform: rotate(45deg); transition: transform .2s; margin-bottom: 3px; }
-.tr-row.open .tr-chev { transform: rotate(-135deg); margin-bottom: -3px; }
-.tr-big { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--line); }
+/* ホーム：種目タップで展開 */
+.card-sep { border-top: 1px solid var(--gold-line); }
+.hm-ex { cursor: pointer; }
+.hm-act { display: flex; align-items: center; gap: 12px; }
+.hm-chev { width: 7px; height: 7px; border-right: 1.5px solid var(--gold); border-bottom: 1.5px solid var(--gold); transform: rotate(45deg); transition: transform .2s; margin: 0 4px 3px 0; }
+.hm-ex.open .hm-chev { transform: rotate(-135deg); margin-bottom: -3px; }
+.hm-big2 { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--line); }
 
 /* 金の折れ線：光と、左から右へ描かれる動き */
 .ln { stroke-dasharray: 1 1; stroke-dashoffset: 1; animation: drawLn .9s ease-out forwards; filter: drop-shadow(0 0 3px rgba(201,169,106,.5)); }
 @keyframes drawLn { to { stroke-dashoffset: 0; } }
+
+/* ================= カレンダー ================= */
+.cal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.cal-head button { width: 44px; height: 36px; font-size: 22px; line-height: 1; color: var(--gold); }
+.cal-head button:disabled { color: #4d4b47; }
+.cal-title { font-family: var(--num); font-size: 20px; font-weight: 500; letter-spacing: 0.1em; }
+.cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); row-gap: 4px; text-align: center; }
+.cal-w { font-size: 11px; color: var(--muted); padding: 4px 0 6px; letter-spacing: 0.1em; }
+.cal-d { padding: 5px 0 4px; border: 1px solid transparent; border-radius: 3px; display: flex; flex-direction: column; align-items: center; gap: 3px; font-family: var(--num); font-size: 16px; line-height: 1; }
+.cal-d.today { border-color: var(--gold-line); color: var(--gold); }
+.cal-m { height: 8px; display: flex; gap: 3px; align-items: center; }
+.cal-dot, .cal-ring { display: inline-block; width: 8px; height: 8px; border-radius: 50%; box-sizing: border-box; }
+.cal-dot { background: var(--gold); }
+.cal-ring { border: 1.5px solid var(--gold); }
+.cal-legend { display: flex; gap: 16px; justify-content: center; margin-top: 10px; font-size: 11px; letter-spacing: 0.1em; color: var(--muted); }
+.cal-legend span { display: flex; align-items: center; gap: 6px; }
 
 /* ================= スクロールバー ================= */
 ::-webkit-scrollbar { width: 6px; }
