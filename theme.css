@@ -389,3 +389,58 @@ body .ex-toggle-icon.is-open {
 .ms-slots { flex: 1; min-width: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
 .ms-slot { height: 36px; padding: 0 2px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; letter-spacing: 0.02em; background: var(--bg); border: 1px solid var(--gold-line); border-radius: 3px; color: var(--gold); }
 .ms-slot.on { background: linear-gradient(180deg, var(--gold-hi), var(--gold-lo)); border-color: transparent; color: #0a0a0b; font-weight: 700; }
+
+/* ================= 追加: 保存ボタンの連打防止（保存直後だけ押せない） ================= */
+body button.is-busy,
+body .bg-orange-500:disabled {
+  opacity: .55;
+  filter: saturate(.7);
+  pointer-events: none;
+}
+
+/* ================= 追加: トーストの見た目（#toast の既存ルールより後ろに置いて上書き） ================= */
+/* 種目の編集（z-index:120）の上にも出す */
+#toast { z-index: 130; display: flex; align-items: center; justify-content: center; gap: 10px; min-width: 160px; }
+/* 保存できた：金のチェック */
+#toast.ok::before {
+  content: '';
+  flex: none;
+  width: 5px; height: 10px;
+  border-right: 2px solid var(--gold);
+  border-bottom: 2px solid var(--gold);
+  transform: rotate(45deg) translateY(-2px);
+}
+/* 失敗：控えめな赤の枠（hover:text-red-400 と同じ色） */
+#toast.err { border-color: #c0605a; }
+
+/* ================= 追加: 展開グラフの凡例と推定1RM（赤の実線） ================= */
+.hm-leg {
+  display: flex;
+  justify-content: flex-end;
+  gap: 14px;
+  margin-bottom: 4px;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+}
+.hm-leg span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.hm-leg span::before {
+  content: '';
+  display: inline-block;
+  width: 12px;
+  height: 2px;
+  border-radius: 1px;
+}
+.hm-leg .lg-g::before { background: var(--gold); }
+.hm-leg .lg-r { color: #e58984; }
+.hm-leg .lg-r::before { background: #d96b66; }
+.ln-rm {
+  stroke-dasharray: 1 1;
+  stroke-dashoffset: 1;
+  animation: drawLn .9s ease-out forwards;
+  filter: drop-shadow(0 0 3px rgba(217, 107, 102, .45));
+}
