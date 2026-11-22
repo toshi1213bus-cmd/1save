@@ -540,21 +540,21 @@ body input.np-active {
   box-shadow: 0 0 0 1px var(--gold), 0 0 10px rgba(var(--gold-rgb), .35);
 }
 body #cardioMinutes.np-active { box-shadow: inset 0 0 0 1px var(--gold); }
-body.np-open.pb-24 { padding-bottom: calc(260px + env(safe-area-inset-bottom, 0px)); }
+body.np-open.pb-24 { padding-bottom: calc(var(--np-h, 226px) + var(--nav-h, 56px) + 16px); }
 #numpad {
   position: fixed;
   left: 50%;
-  bottom: 0;
-  transform: translate(-50%, 100%);
+  bottom: var(--nav-h, 56px); /* 下タブ(#bottomNav)の上に載せる */
+  transform: translate(-50%, calc(100% + var(--nav-h, 56px)));
   width: 100%;
   max-width: 28rem;
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 6px;
-  padding: 8px 8px calc(8px + env(safe-area-inset-bottom, 0px));
+  padding: 8px;
   background: var(--surface);
   border-top: 1px solid var(--gold-line);
-  z-index: 60;
+  z-index: 49; /* 下タブ(z-index:50)より後ろ */
   visibility: hidden;
   transition: transform .2s ease, visibility 0s .2s;
   user-select: none;
@@ -609,12 +609,23 @@ body.np-open.pb-24 { padding-bottom: calc(260px + env(safe-area-inset-bottom, 0p
 .sh-foot { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 12px 14px calc(12px + env(safe-area-inset-bottom, 0px)); border-top: 1px solid var(--gold-line); background: var(--bg); }
 .sh-foot button { min-height: 44px; padding: 0 4px; font-size: 12px; font-weight: 700; letter-spacing: 0.08em; border-radius: 3px; border: 1px solid var(--gold-line); color: var(--gold); }
 
-/* ================= 追加: 調子ラベル（ホーム種目行の「今日／前回」の横） ================= */
+/* ================= 追加: 調子ラベル（ホーム種目行の「今日／前回」の横） =================
+   上昇・好調＝金文字＋金枠／停滞注意・下降＝赤文字＋赤枠／プラトー＝赤文字＋金枠／記録なし＝白系・枠なし */
 .hm-st { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 8px; }
-.hm-tr { font-size: 12px; font-weight: 500; letter-spacing: 0.1em; white-space: nowrap; color: var(--muted); }
-.hm-tr.up { color: var(--gold); }
-.hm-tr.down { color: #c0605a; }
-.hm-tr.hot { font-weight: 600; letter-spacing: 0.15em; color: var(--gold); border: 1px solid var(--gold); border-radius: 3px; padding: 0 8px; }
+.hm-tr { font-size: 12px; font-weight: 500; letter-spacing: 0.1em; white-space: nowrap; color: var(--text); }
+.hm-tr.hot, .hm-tr.up, .hm-tr.flat, .hm-tr.down, .hm-tr.plat { border: 1px solid var(--gold); border-radius: 3px; padding: 0 8px; }
+.hm-tr.hot, .hm-tr.up { color: var(--gold); }
+.hm-tr.hot { font-weight: 600; letter-spacing: 0.15em; }
+.hm-tr.flat, .hm-tr.down, .hm-tr.plat { color: #c0605a; }
+.hm-tr.flat, .hm-tr.down { border-color: #c0605a; }
+.hm-tr.none { color: var(--text); }
+/* プラトー検知！！ ＋ 対処案（種目カードを開いているときだけ）：1行に収める */
+.hm-trw { display: inline-flex; align-items: center; gap: 8px; white-space: nowrap; }
+.hm-tip { font-size: 11px; letter-spacing: 0; color: var(--text-3); white-space: nowrap; }
+
+/* ================= 追加: 履歴の「グラフ推移」ボタン（PUSH/PULL/LEGS/OTHER のセレクトと同じ見た目） ================= */
+.gr-btn { background: var(--bg); border: 1px solid var(--line); border-radius: 8px; color: var(--text); font-size: 12px; line-height: 1rem; font-weight: 700; padding: 4px 8px; }
+.gr-btn:focus, .gr-btn.on { outline: none; border-color: var(--gold); }
 
 /* ================= 追加: 履歴表示件数（− 5件 / ＋ 5件） ================= */
 .pager-btn:disabled { opacity: .35; pointer-events: none; }
