@@ -1,9 +1,16 @@
-/* iron-log extras: index.html のスクリプトの後ろに読み込む */
+/* =====================================================================
+   extras.js：画面（ホーム／カレンダー／日付シート／メニュー編集／テンキー／テーマ／タブ）と、描画の入口
+   index.html のスクリプトの後ろに読み込む。index.html の関数は上書き（ラップ）しない
+
+   ■ extras.js が index.html に公開するもの（index.html はこれ以外の中身を知らない）
+     requestRender(scope)  … 画面更新の唯一の入口（下の paint）
+     askConfirm / alert    … 確認ダイアログ・トースト
+     todayType / menuAddExercise / tplExport / tplImport … 部位・メニュー（PARTS.menu もここで登録）
+     Numpad                … テンキーの窓口（close / followNewRow / release）
+     switchTab / setTheme / toggleHelp など … HTML の onclick から呼ばれるもの
+   ===================================================================== */
 (function () {
-const buzz = ms => { try { navigator.vibrate && navigator.vibrate(ms); } catch (e) {} };
-const pad = n => String(n).padStart(2, '0');
-const dstr = d => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
-const fmtD = s => { const p = s.split('-'); return parseInt(p[1], 10) + '/' + parseInt(p[2], 10); };
+const pad = pad2, dstr = toDateStr, fmtD = formatDate; /* index.html の共通関数 */
 
 /* ===== トースト / 確認ダイアログ ===== */
 const toastEl = document.createElement('div');
@@ -107,89 +114,32 @@ function updateSummary() {
     cl + '分）／ 今週 ' + cw + '分';
 }
 
-/* ===== 画面更新の入口（ここだけが描画を呼ぶ）
-   ・同じ操作の中で何度 renderWorkouts / renderCardios が呼ばれても、終わったあとに1回ずつだけ描く
-   ・見えていない画面（ホーム／月間・設定）は描かず、タブを開いたときに描く ===== */
-const rCore = window.renderWorkouts; /* 履歴リスト＋トレのポイント */
-const rInner = function () { rCore(); decorateHistory(); }; /* 描いたあとに「グラフ推移」ボタンとグラフ枠を足す */
-const cInner = window.renderCardios; /* 有酸素リスト＋比較ポイント */
+/* ===== 画面更新の入口（描画はここだけ。データを変える側は requestRender を1操作につき1回呼ぶ）
+   scope … 文字列 'w' | 'c' | 'menu' | 'all'、または { w, c, menu, view }
+     w … トレ記録・部位が変わった ／ c … 有酸素が変わった ／ menu … メニュー（テンプレート）が変わった
+     view … データは変えず、その画面の表示だけ更新する（'home' | 'settings' | 'calendar'）
+   どの変更でどの画面を描くか（見えていないホーム／月間・設定は描かず、タブを開いたとき view 付きで描く）
+     履歴リスト＋「グラフ推移」ボタン … w ／ 有酸素リスト … c ／ 月間サマリー … w, c, view=settings
+     カレンダー … w, c, view=settings|calendar ／ メニュー表示 … menu, view=settings
+     ホーム … w, menu, view=home ／ 開いている日付シート … w, c
+   描く順は固定（リスト → サマリー → カレンダー → メニュー → ホーム → シート）。1つ失敗しても後続は描く ===== */
 const isShown = id => { const e = document.getElementById(id); return !!e && !e.classList.contains('hidden'); };
-function paint(w, c, all) {
-  if (w || all) rInner();
-  if (c || all) cInner();
-  updateSummary(); /* 月間サマリーの2行は、内側の描画のあとに上書きする */
-  if (isShown('tabContentSettings')) { renderCalendar(); if (all) renderMenuSummary(); }
-  if ((w || all) && isShown('tabContentHome')) renderHome();
-  if (sheetEl) renderSheet(); /* 日付ボトムシートが開いていれば最新化 */
-}
-let depth = 0, dirtyW = false, dirtyC = false, dirtyAll = false;
-function request(w, c, all) {
-  if (depth) { dirtyW = dirtyW || w; dirtyC = dirtyC || c; dirtyAll = dirtyAll || all; return; }
-  paint(w, c, all);
-}
-/* 中の描画要求をためておき、抜けるときにまとめて1回だけ描く */
-function batch(fn) {
-  depth++;
-  try { return fn(); }
-  finally {
-    if (!--depth && (dirtyW || dirtyC || dirtyAll)) {
-      const w = dirtyW, c = dirtyC, a = dirtyAll;
-      dirtyW = dirtyC = dirtyAll = false;
-      paint(w, c, a);
-    }
+const safe = fn => { try { fn(); } catch (e) { console.log(e); } };
+const SCOPES = { w: { w: true }, c: { c: true }, menu: { menu: true }, all: { w: true, c: true, menu: true } };
+function paint(s) {
+  const data = !!(s.w || s.c);
+  if (s.w) safe(() => { drawWorkoutList(); decorateHistory(); }); /* 描いたあとに「グラフ推移」ボタンとグラフ枠を足す */
+  if (s.c) safe(drawCardioList);
+  if (data || s.view === 'settings') safe(updateSummary);
+  if (isShown('tabContentSettings')) {
+    if (data || s.view === 'settings' || s.view === 'calendar') safe(renderCalendar);
+    if (s.menu || s.view === 'settings') safe(renderMenuSummary);
   }
+  if ((s.w || s.menu || s.view === 'home') && isShown('tabContentHome')) safe(renderHome);
+  if (data && sheetEl) safe(renderSheet); /* 日付ボトムシートが開いていれば最新化 */
 }
-window.renderWorkouts = function () { request(true, false, false); };
-window.renderCardios = function () { request(false, true, false); };
-window.refreshAll = function () { request(true, true, true); };
-/* メニュー（テンプレ）だけが変わったとき：見えている画面だけ更新 */
-function paintMenu() {
-  if (isShown('tabContentSettings')) renderMenuSummary();
-  if (isShown('tabContentHome')) renderHome();
-}
-
-/* ===== 保存ボタンの連打防止（保存に成功したら少しの間だけ押せない） ===== */
-const LOCK_MS = 700;
-function lockButton(btn) {
-  if (!btn) return;
-  btn.disabled = true;
-  btn.classList.add('is-busy');
-  setTimeout(() => { btn.disabled = false; btn.classList.remove('is-busy'); }, LOCK_MS);
-}
-function savedFeedback(btn) {
-  buzz(25);
-  window.alert('保存しました', 0, 'ok');
-  lockButton(btn);
-}
-window.deleteWorkout = async function (id) {
-  if (!(await ask('この記録を削除しますか？'))) return;
-  const prevW = workouts;
-  const gone = workouts.find(i => i.id === id);
-  try {
-    workouts = workouts.filter(i => i.id !== id);
-    if (!safeSave('simple_workouts', workouts)) { workouts = prevW; renderWorkouts(); return; }
-  } catch (e) {
-    console.log(e);
-    workouts = prevW;
-    renderWorkouts();
-    window.alert('保存できませんでした');
-    return;
-  }
-  if (editingId === id) resetForm(); /* 削除できたときだけ、編集中の入力を消す */
-  /* その日の記録が0件になったら、部位の情報も消す */
-  if (gone && !workouts.some(i => i.dateStr === gone.dateStr) && dayPplMap[gone.dateStr] !== undefined) {
-    const nextP = Object.assign({}, dayPplMap);
-    delete nextP[gone.dateStr];
-    if (safeSave('simple_day_ppl', nextP)) dayPplMap = nextP;
-  }
-  renderWorkouts();
-};
-window.deleteCardio = async function (id) {
-  if (!(await ask('この有酸素記録を削除しますか？'))) return;
-  const prevC = cardios;
-  cardios = cardios.filter(i => i.id !== id);
-  if (!safeSave('simple_cardios', cardios)) cardios = prevC;
-  renderCardios();
+window.requestRender = function (scope) {
+  paint(typeof scope === 'string' ? (SCOPES[scope] || {}) : (scope || {}));
 };
 
 /* ===== 履歴の開閉（シェブロン） ===== */
@@ -302,8 +252,6 @@ if (tmCenter) {
   }
   if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => fitTimer(true)).catch(() => {});
 }
-const origBeep = window.playSingleBeep;
-window.playSingleBeep = function () { if (typeof origBeep === 'function') origBeep(); buzz(150); };
 document.addEventListener('click', e => { if (e.target.closest('button')) buzz(10); });
 
 /* ===== 専用テンキー（kg／回／有酸素の分。OSのキーボードは出さない） =====
@@ -409,21 +357,20 @@ document.addEventListener('click', e => {
   const k = e.target.closest('#numpad [data-k]');
   if (k && !k.disabled) padPress(k.dataset.k);
 });
-/* ＋セット：テンキーが開いていれば、追加した行の kg へ移す（古い行や画面外に残さない）。開いていなければ何もしない
-   ※引数なしの呼び出し＝ボタン。履歴や候補からの自動追加（引数あり）では動かさない */
-const addRowCore = window.addSetRow;
-window.addSetRow = function () {
-  addRowCore.apply(this, arguments);
-  if (arguments.length || !padInput) return;
-  const rows = document.querySelectorAll('#setsContainer .set-row');
-  const next = rows.length && rows[rows.length - 1].querySelector('.weight-input');
-  if (next) openPad(next); else closePad();
-};
-const rmRowCore = window.removeSetRow;
-window.removeSetRow = function (btn) {
-  const row = btn && btn.closest('.set-row');
-  if (row && padInput && row.contains(padInput)) closePad();
-  return rmRowCore.apply(this, arguments);
+/* テンキーの窓口（index.html のフォームから呼ばれる）
+   ・followNewRow … ＋セットのボタン：テンキーが開いていれば、追加した行の kg へ移す（古い行や画面外に残さない）。開いていなければ何もしない
+   ・release … 行を削除するとき、テンキーがその行を指していれば閉じる */
+window.Numpad = {
+  close: closePad,
+  followNewRow: function () {
+    if (!padInput) return;
+    const rows = document.querySelectorAll('#setsContainer .set-row');
+    const next = rows.length && rows[rows.length - 1].querySelector('.weight-input');
+    if (next) openPad(next); else closePad();
+  },
+  release: function (row) {
+    if (row && padInput && row.contains(padInput)) closePad();
+  }
 };
 /* 種目名など、通常のキーボードを使う欄に触れたらテンキーは閉じる */
 document.addEventListener('focusin', e => {
@@ -550,8 +497,7 @@ const fmtSet = s => (s.weight ? s.weight + 'kg × ' + s.reps + '回' : s.reps + 
 const bestSet = sets => sets.reduce((b, s) => (!b || s.weight > b.weight || (s.weight === b.weight && s.reps > b.reps)) ? s : b, null);
 
 /* ===== ホーム ===== */
-const TYPES = ['PUSH', 'PULL', 'LEGS', 'OTHER'];
-const pplOf = d => dayPplMap[d] || 'PUSH';
+const TYPES = PPL_TYPES;
 let override = null;
 const dayList = () => [...new Set(workouts.map(w => w.dateStr))].sort();
 function todayType() {
@@ -562,7 +508,8 @@ function todayType() {
   const last = days.filter(d => d < today).pop();
   return last ? TYPES[(TYPES.indexOf(pplOf(last)) + 1) % 4] : 'PUSH';
 }
-window.homeType = function (t) { override = { day: dstr(new Date()), type: t }; homeOpen = null; renderHome(); };
+window.todayType = todayType; /* index.html の saveWorkout が、保存前に今日の部位を決めるのに使う */
+window.homeType = function (t) { override = { day: dstr(new Date()), type: t }; homeOpen = null; requestRender({ view: 'home' }); };
 
 /* ===== 固定メニュー・テンプレート
    各部位に4枠（名前＋種目リスト on/off）。選択中の枠の中身を menuData（simple_menu）へ常に同期する ===== */
@@ -620,19 +567,11 @@ function syncMenuFromTpl() {
   TYPES.forEach(t => { const s = activeSlot(t); m[t] = { on: s.on.slice(), off: s.off.slice() }; });
   menuData = m;
 }
-function saveMenu() { return safeSave('simple_menu', menuData); }
-/* テンプレートと simple_menu をまとめて保存 */
-/* 2つの保存はセット：片方でも失敗したら、保存領域の2つとも元の中身に戻して false を返す
-   （メモリ上の tplData は呼び出し側が元に戻す） */
-function persistTpl() {
-  const prevTplRaw = readRaw(TPL_KEY), prevMenuRaw = readRaw('simple_menu');
-  syncMenuFromTpl();
-  let ok = false;
-  try { ok = safeSave(TPL_KEY, tplData) && saveMenu(); } catch (e) { ok = false; }
-  if (ok) return true;
-  restoreRaw(TPL_KEY, prevTplRaw);
-  restoreRaw('simple_menu', prevMenuRaw);
-  return false;
+/* 旧データ（simple_menu だけ／何も無い）の取り込み：各部位の1枠目へ入れる */
+function tplFromMenu(base) {
+  const t = normTpl(null);
+  TYPES.forEach(k => { const s = t[k].slots[0]; s.on = base[k].on; s.off = base[k].off; });
+  return t;
 }
 function buildFromHistory() {
   const m = normMenu(null), days = dayList();
@@ -642,147 +581,63 @@ function buildFromHistory() {
   });
   return m;
 }
+/* メモリ上のテンプレートを作る（保存はしない）：保存済みの枠データ → 無ければ simple_menu → 無ければ履歴から */
+function loadTpl() {
+  const raw = loadJson(TPL_KEY, null);
+  if (raw && typeof raw === 'object' && !Array.isArray(raw)) return normTpl(raw);
+  return tplFromMenu(menuData ? normMenu(menuData) : buildFromHistory());
+}
 function ensureMenu() {
   if (tplData) return;
-  const raw = loadJson(TPL_KEY, null);
-  if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
-    tplData = normTpl(raw);
-  } else {
-    /* 旧データ（simple_menu だけ／何も無い）は各部位の1枠目へ */
-    const base = menuData ? normMenu(menuData) : buildFromHistory();
-    tplData = normTpl(null);
-    TYPES.forEach(t => { const s = tplData[t].slots[0]; s.on = base[t].on; s.off = base[t].off; });
-  }
-  persistTpl();
-}
-window.tplExport = function () { ensureMenu(); return JSON.parse(JSON.stringify(tplData)); };
-/* 復元：新形式はそのまま、旧形式（menuのみ）は各部位の1枠目へ。保存に失敗したら例外（呼び出し側で巻き戻し） */
-window.tplImport = function (rawTpl, rawMenu) {
-  if (rawTpl && typeof rawTpl === 'object' && !Array.isArray(rawTpl)) {
-    tplData = normTpl(rawTpl);
-  } else if (rawMenu && typeof rawMenu === 'object') {
-    tplData = normTpl(null);
-    const b = normMenu(rawMenu);
-    TYPES.forEach(t => { const s = tplData[t].slots[0]; s.on = b[t].on; s.off = b[t].off; });
-  } else {
-    tplData = null;
-    localStorage.removeItem(TPL_KEY);
-    menuData = null;
-    ensureMenu();
-    return;
-  }
+  tplData = loadTpl();
   syncMenuFromTpl();
-  localStorage.setItem(TPL_KEY, JSON.stringify(tplData));
-  localStorage.setItem('simple_menu', JSON.stringify(menuData));
+  persistParts(['menu']); /* 失敗しても動作は続ける（保存領域は元のまま） */
+}
+/* メニュー（テンプレート simple_menu_tpl ＋ simple_menu）を、index.html の保存の窓口（transact）へ登録。
+   2つの保存はセット：片方でも失敗したら persistParts が保存領域の2つとも元の中身に戻す */
+PARTS.menu = {
+  keys: [TPL_KEY, 'simple_menu'],
+  get: () => { ensureMenu(); return { tpl: tplData, menu: menuData }; },
+  set: v => { tplData = v.tpl; menuData = v.menu; },
+  save: () => { syncMenuFromTpl(); return writeJson(TPL_KEY, tplData) && writeJson('simple_menu', menuData); }
 };
-window.tplReload = function () { tplData = null; };
+window.tplExport = function () { ensureMenu(); return JSON.parse(JSON.stringify(tplData)); };
+/* 復元：新形式はそのまま、旧形式（menuのみ）は各部位の1枠目へ。メモリ上に作るだけ（保存は呼び出し側の transact） */
+window.tplImport = function (rawTpl, rawMenu) {
+  if (rawTpl && typeof rawTpl === 'object' && !Array.isArray(rawTpl)) tplData = normTpl(rawTpl);
+  else if (rawMenu && typeof rawMenu === 'object') tplData = tplFromMenu(normMenu(rawMenu));
+  else tplData = tplFromMenu(buildFromHistory()); /* どちらも無ければ、復元後の履歴から作る */
+  syncMenuFromTpl();
+};
+/* 保存した種目がメニューに無ければ、部位 type の選択中の枠へ足す（saveWorkout の transact の中で呼ぶ。保存は transact） */
+window.menuAddExercise = function (type, name) {
+  ensureMenu();
+  const s = activeSlot(type);
+  if (!s.on.includes(name) && !s.off.includes(name)) s.on.push(name);
+};
+/* 枠（1〜4）の切り替え。保存できなければ元の枠のまま */
 window.tplSelect = function (t, i) {
   ensureMenu();
   if (!TYPES.includes(t) || !(i >= 0 && i < SLOT_N)) return;
-  const prev = tplData[t].idx;
-  if (prev === i) return;
-  let ok = false;
-  try {
-    tplData[t].idx = i;
-    ok = persistTpl();
-  } catch (e) { console.log(e); ok = false; }
-  if (!ok) { tplData[t].idx = prev; syncMenuFromTpl(); }
-  paintMenu();
+  if (tplData[t].idx === i) return;
+  transact(['menu'], () => { tplData[t].idx = i; });
+  requestRender('menu');
 };
 function lastRec(name, today) {
   return workouts.filter(w => w.name.trim() === name && w.dateStr < today).sort((a, b) => (a.dateStr < b.dateStr ? -1 : 1)).pop() || null;
 }
 
-/* ===== ホーム ===== */
+/* ===== ホーム：表示の状態（ホームの「入力」からのフォーム操作は homeFill のみ。フォームの状態は index.html） ===== */
 let homeOpen = null, homeNames = [];
-/* ===== トレーニングのフォーム上部（#formHeaderContainer）をここで組み立てる
-   ・日付指定（formDate）がある → 「○/○ の記録を追加（解除）」
-   ・ホームの「入力」から来た → 「入力中（キャンセル）」を、日付指定の下に並べる（上書きしない）
-   ・編集中 → 「編集中（キャンセル）」（日付指定は裏で保持し、編集が終わると戻る） ===== */
-let homeInput = false, homeInputName = null;
-function hdrRow(title, fn, label) {
-  return '<div class="flex justify-between items-center mb-2.5"><h2 class="text-sm font-semibold text-orange-400 uppercase tracking-wider">' + title +
-    '</h2><button type="button" onclick="' + fn + '" class="text-xs text-gray-400 hover:text-white">' + label + '</button></div>';
-}
-function renderFormHeader() {
-  const h = document.getElementById('formHeaderContainer');
-  if (!h) return;
-  let html = '';
-  if (editingId !== null) html = hdrRow('編集中', 'cancelEdit()', 'キャンセル');
-  else {
-    if (formDate) html += hdrRow(formatDate(formDate) + ' の記録を追加', 'setFormDate(null)', '解除');
-    if (homeInput) html += hdrRow('入力中', 'cancelEdit()', 'キャンセル');
-  }
-  h.innerHTML = html;
-}
-function hideSuggest() {
-  const box = document.getElementById('suggestionBox');
-  if (box) { box.classList.add('hidden'); box.innerHTML = ''; }
-}
-window.setFormDate = function (ds) { formDate = ds || null; renderFormHeader(); };
-/* リセット：保存（追加）のあとは日付指定も解除。キャンセル／編集の終了では日付指定を維持する */
-const resetCore = window.resetForm;
-window.resetForm = function (keep) {
-  const keepDate = (keep === true || editingId !== null) ? formDate : null;
-  resetCore();
-  formDate = keepDate;
-  homeInput = false;
-  homeInputName = null;
-  hideSuggest();
-  closePad();
-  renderFormHeader();
-};
-/* キャンセル：フォームをリセットし、アクティブ要素のフォーカス（とテンキー）も外してキーボードが勝手に立ち上がらないようにする */
-window.cancelEdit = function () {
-  window.resetForm(true); /* 中で closePad() も呼ぶ */
-  const a = document.activeElement;
-  if (a && a !== document.body && a.blur) a.blur();
-};
-/* 編集の開始：日付指定（formDate）は消さない */
-const editCore = window.editWorkout;
-window.editWorkout = function (id) {
-  const keep = formDate;
-  editCore.apply(this, arguments);
-  formDate = keep;
-  if (editingId === id) { homeInput = false; homeInputName = null; }
-  hideSuggest();
-  renderFormHeader();
-};
-/* 種目名を別の名前に書き換えたら、前回のセット内容と「入力中」の紐づきを外す。入力に合う候補は常に最新化 */
-const suggestCore = window.checkExerciseSuggestion;
-window.checkExerciseSuggestion = function () {
-  const inp = document.getElementById('exerciseName');
-  if (homeInput && inp && inp.value.trim() !== homeInputName) {
-    const v = inp.value, keep = formDate;
-    resetCore(); /* セット行・候補・ヘッダーを初期状態に（種目名と日付指定は戻す） */
-    inp.value = v;
-    formDate = keep;
-    homeInput = false;
-    homeInputName = null;
-    renderFormHeader();
-  }
-  return suggestCore.apply(this, arguments);
-};
-/* 手入力 → サジェストから過去記録を選んだときも「入力中」＋「キャンセル」を出す（編集中は対象外） */
-const applyCore = window.applySuggestion;
-window.applySuggestion = function (id) {
-  applyCore.apply(this, arguments);
-  if (editingId !== null) return;
-  const inp = document.getElementById('exerciseName');
-  homeInput = true;
-  homeInputName = inp ? inp.value.trim() : null;
-  hideSuggest();
-  renderFormHeader();
-};
 window.homeFill = function (i) {
   const name = homeNames[i];
   if (name === undefined) return;
-  if (editingId !== null) window.resetForm(true); /* 編集は中断（日付指定は維持） */
+  if (editingId !== null) resetForm(true); /* 編集は中断（日付指定は維持） */
   switchTab('workout');
   const rec = lastRec(name, dstr(new Date()));
   if (rec) applySuggestion(rec.id);
   else {
-    window.resetForm(true);
+    resetForm(true);
     const nameEl = document.getElementById('exerciseName');
     if (nameEl) nameEl.value = name;
   }
@@ -844,7 +699,7 @@ document.addEventListener('click', e => {
   if (!r || e.target.closest('.hm-in')) return;
   const n = homeNames[parseInt(r.dataset.i, 10)];
   if (n === undefined) return;
-  homeOpen = homeOpen === n ? null : n; renderHome(); });
+  homeOpen = homeOpen === n ? null : n; requestRender({ view: 'home' }); });
 
 /* ===== 種目の編集（画面全体。保存まで確定しない。戻る操作＝キャンセル）
    各部位で「現在オンの枠」を開く。種目リストとテンプレート名をまとめて保存 ===== */
@@ -923,6 +778,19 @@ function leaveLayer() {
   try { history.back(); } catch (e) { navDone(); }
 }
 function afterNav(fn) { if (navBusy) navQueue.push(fn); else fn(); }
+/* 重なる画面（メニュー編集／日付シート）を開く共通の入口
+   ・canOpen() が false なら何もしない（同時に開かない）。戻る操作の完了待ちなら、完了後にもう一度確かめて開く
+   ・開く前にテンキーを閉じ、build()（画面を作って取り付け、描画関数を返す）→ 履歴の重なり用エントリ → 描画 の順 */
+function openLayer(flag, canOpen, build) {
+  if (!canOpen()) return;
+  afterNav(() => {
+    if (!canOpen()) return;
+    closePad();
+    const paintLayer = build();
+    enterLayer(flag);
+    if (paintLayer) paintLayer();
+  });
+}
 window.addEventListener('popstate', () => {
   const s = history.state || {};
   if (!s.sheet) removeSheet();
@@ -946,9 +814,8 @@ function onEditorClick(e) {
   const act = b.dataset.act, m = draft[editType], i = parseInt(b.dataset.i, 10);
   if (act === 'cancel') { leaveEditor(); return; }
   if (act === 'save') {
-    const prevTpl = JSON.stringify(tplData);
-    let ok = false;
-    try {
+    /* 保存できなければ、メモリ・保存領域とも元に戻し、編集画面は開いたまま（成功の通知は出さない） */
+    const ok = transact(['menu'], () => {
       TYPES.forEach(t => {
         const s = activeSlot(t), d = draft[t];
         s.name = fitName(String(d.name || '').trim()) || ('枠' + (tplData[t].idx + 1));
@@ -956,16 +823,10 @@ function onEditorClick(e) {
         s.on = l.on;
         s.off = l.off;
       });
-      ok = persistTpl();
-    } catch (e) { console.log(e); ok = false; }
-    if (!ok) { /* 失敗：メモリ・保存領域とも元に戻し、編集画面は開いたまま（成功の通知は出さない） */
-      tplData = JSON.parse(prevTpl);
-      syncMenuFromTpl();
-      window.alert('保存できませんでした');
-      return;
-    }
+    });
+    if (!ok) return;
     leaveEditor();
-    paintMenu();
+    requestRender('menu');
     window.alert('メニューを保存しました', 0, 'ok');
     return;
   }
@@ -979,10 +840,7 @@ function onEditorClick(e) {
   renderEditor();
 }
 window.openMenuEditor = function () {
-  if (editorOpen()) return; /* 二重表示しない */
-  afterNav(() => {
-    if (editorOpen()) return;
-    closePad();
+  openLayer('me', () => !editorOpen(), () => { /* 二重表示しない */
     removeSheet(); /* 日付シートが開いていれば、先に閉じてから開く（履歴は差し替えるので増えない） */
     ensureMenu();
     draft = {};
@@ -994,8 +852,7 @@ window.openMenuEditor = function () {
     o.addEventListener('input', onEditorInput);
     o.addEventListener('compositionend', onEditorInput);
     document.body.appendChild(o);
-    enterLayer('me');
-    renderEditor();
+    return renderEditor;
   });
 };
 /* 「月間/設定」タブ：各部位の4枠ボタン（オン＝ゴールド塗り、オフ＝金枠）。タップで即切り替え */
@@ -1015,7 +872,7 @@ window.calShift = function (d) {
   const n = new Date(), t = cal.y * 12 + cal.m + d;
   if (t > n.getFullYear() * 12 + n.getMonth()) return;
   cal = { y: Math.floor(t / 12), m: t % 12 };
-  renderCalendar();
+  requestRender({ view: 'calendar' });
 };
 function renderCalendar() {
   const el = document.getElementById('calendarCard');
@@ -1082,15 +939,16 @@ function sheetHtml(d) {
 function renderSheet() {
   if (!sheetEl || !sheetDate) return;
   const box = sheetEl.firstElementChild;
-  const openIds = [...box.querySelectorAll('.ex-content:not(.hidden)')].map(e => e.closest('[data-id]').dataset.id);
+  if (!box) return;
+  const openIds = [...box.querySelectorAll('.ex-content:not(.hidden)')].map(e => { const c = e.closest('[data-id]'); return c ? c.dataset.id : null; }).filter(Boolean);
   const oldBody = box.querySelector('.sh-body');
   const top = oldBody ? oldBody.scrollTop : 0;
   box.innerHTML = sheetHtml(sheetDate);
   openIds.forEach(id => {
     const c = box.querySelector('[data-id="' + id + '"]');
-    if (!c) return;
-    c.querySelector('.ex-content').classList.remove('hidden');
-    c.querySelector('.ex-toggle-icon').classList.add('is-open');
+    const content = c && c.querySelector('.ex-content'), icon = c && c.querySelector('.ex-toggle-icon');
+    if (content) content.classList.remove('hidden');
+    if (icon) icon.classList.add('is-open');
   });
   const nb = box.querySelector('.sh-body');
   if (nb) nb.scrollTop = top;
@@ -1107,10 +965,7 @@ function closeSheet() {
 }
 function openSheet(d) {
   /* メニュー編集が開いている間は開かない（編集中の内容を守る） */
-  if (sheetEl || editorOpen()) return;
-  afterNav(() => {
-    if (sheetEl || editorOpen()) return;
-    closePad();
+  openLayer('sheet', () => !sheetEl && !editorOpen(), () => {
     sheetDate = d;
     sheetEl = document.createElement('div');
     sheetEl.id = 'daySheet';
@@ -1125,8 +980,7 @@ function openSheet(d) {
       else if (a === 'addc') { closeSheet(); switchTab('cardio'); setCardioDate(day); }
     });
     document.body.appendChild(sheetEl);
-    enterLayer('sheet');
-    renderSheet();
+    return renderSheet;
   });
 }
 /* 編集：シートを閉じてトレーニングタブの編集状態へ */
@@ -1140,111 +994,33 @@ document.addEventListener('click', e => {
   if (c) openSheet(c.dataset.d);
 });
 
-/* ===== 保存（1か所に集約）
-   core（index.html の saveWorkout／saveCardio）が成否（true / false）を返す。成功のときだけ 振動・「保存しました」・連打ロック
-   ・saveWorkout は部位（simple_day_ppl）・メニュー（simple_menu_tpl / simple_menu）の保存も同じ取引で行う（afterWorkoutSave）。
-     どれか1つでも失敗・例外なら、記録・部位・メニューをメモリと保存領域の両方で元に戻す
-   保存後はフォーカスを当てない（キーボード・テンキーとも勝手に開かない） ===== */
-let saveCtx = null;
-window.afterWorkoutSave = function () {
-  const ctx = saveCtx;
-  if (!ctx) return true;
-  const day = ctx.day, name = ctx.name;
-  const pplRaw = readRaw('simple_day_ppl');
-  let pplAdded = false, tplSnap = null;
-  const undo = () => {
-    if (pplAdded) { delete dayPplMap[day]; restoreRaw('simple_day_ppl', pplRaw); }
-    if (tplSnap !== null) { tplData = JSON.parse(tplSnap); syncMenuFromTpl(); }
-  };
-  try {
-    ensureMenu();
-    tplSnap = JSON.stringify(tplData);
-    if (dayPplMap[day] === undefined && workouts.some(w => w.dateStr === day)) {
-      dayPplMap[day] = ctx.type;
-      pplAdded = true;
-      if (!safeSave('simple_day_ppl', dayPplMap)) { undo(); return false; }
-    }
-    const s = activeSlot(dayPplMap[day] || ctx.type);
-    if (name && workouts.some(w => w.dateStr === day && w.name.trim() === name) && !s.on.includes(name) && !s.off.includes(name)) {
-      s.on.push(name);
-      if (!persistTpl()) { undo(); return false; }
-    }
-    return true;
-  } catch (e) {
-    console.log(e);
-    undo();
-    return false;
-  }
-};
-const saveCore = window.saveWorkout;
-window.saveWorkout = function () {
-  const btn = document.getElementById('saveBtn');
-  if (btn && btn.disabled) return false;
-  const nameEl = document.getElementById('exerciseName');
-  const today = dstr(new Date());
-  const day = (editingId === null && formDate) || today; /* 「この日にトレを追加」の日付 */
-  const type = day === today ? todayType() : pplOf(day); /* 保存前に決める（保存すると今日の部位が変わるため） */
-  let saved = false;
-  saveCtx = { day: day, type: type, name: nameEl ? nameEl.value.trim() : '' };
-  try {
-    batch(() => { saved = saveCore.apply(this, arguments) === true; }); /* ← ここで必要な画面を1回ずつ描く */
-  } catch (e) {
-    console.log(e);
-    saved = false;
-  } finally {
-    saveCtx = null;
-  }
-  if (saved) {
-    closePad();
-    if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
-    savedFeedback(btn);
-  }
-  return saved;
-};
-const saveCardioCore = window.saveCardio;
-window.saveCardio = function () {
-  const btn = document.querySelector('button[onclick="saveCardio()"]');
-  if (btn && btn.disabled) return false;
-  let saved = false;
-  try { saved = saveCardioCore.apply(this, arguments) === true; } catch (e) { console.log(e); saved = false; }
-  if (saved) {
-    closePad();
-    if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
-    savedFeedback(btn);
-  }
-  return saved;
-};
-
 /* ===== 下タブ ===== */
 const TABS = { home: 'tabContentHome', workout: 'tabContentWorkout', cardio: 'tabContentCardio', settings: 'tabContentSettings' };
-window.switchTab = function (name) {
+/* 画面の切り替え。extra … 同時に描き直すもの（起動時の { w, c } など） */
+function showTab(name, extra) {
   if (alarmInterval) stopTimer();
   closePad(); /* 下タブが前面にあっても、移動先にテンキーを残さない */
   if (name !== 'workout') closeHistory(); /* 別ページへ移動したら履歴の種目一覧・セット内訳・グラフを閉じる */
-  /* 画面を切り替えたら、履歴の表示件数は基準に戻す（トレーニング＝4件、有酸素＝5件） */
-  if (visibleDaysCount !== PAGE_STEP) { visibleDaysCount = PAGE_STEP; renderWorkouts(); }
-  if (visibleCardioDaysCount !== CARDIO_PAGE_STEP) { visibleCardioDaysCount = CARDIO_PAGE_STEP; renderCardios(); }
+  const paging = resetPaging(); /* 履歴の表示件数は基準に戻す（トレーニング＝4件、有酸素＝5件） */
   Object.keys(TABS).forEach(k => {
     const el = document.getElementById(TABS[k]);
     if (el) el.classList.toggle('hidden', k !== name);
   });
   document.querySelectorAll('#bottomNav button').forEach(b => b.classList.toggle('on', b.dataset.t === name));
-  /* 見えていなかった画面は、開くときに最新の内容で描く */
-  if (name === 'home') renderHome();
-  if (name === 'settings') { updateSummary(); renderCalendar(); renderMenuSummary(); }
+  /* 件数を戻した履歴と、見えるようになった画面（ホーム／月間・設定）を、最新の内容で1回だけ描く */
+  const e = extra || {};
+  requestRender({ w: !!e.w || paging.w, c: !!e.c || paging.c, view: name });
   fitTimer(); /* トレーニング画面が見えるようになったとき、タイマーの文字サイズを合わせる */
   window.scrollTo(0, 0);
-};
+}
+window.switchTab = function (name) { showTab(name); };
 
 /* 起動：1手順ずつ実行し、要素が無いなどで1つ失敗しても後続の初期化を止めない
-   （保存済みテーマを適用 → 履歴と有酸素を1回ずつ描く → ホームはタブ表示のときに1回描く） */
+   （保存済みテーマを適用 → 履歴・有酸素・月間サマリー・ホームを showTab で1回ずつ描く） */
 function step(fn) { try { fn(); } catch (e) { console.log(e); } }
 step(() => { if (layerFlagged()) history.replaceState(null, ''); }); /* 再読み込みで残った重なり用の履歴状態を消す */
 step(() => applyTheme(getTheme()));
-step(rInner);
-step(cInner);
-step(updateSummary);
-step(() => switchTab('home'));
+step(() => showTab('home', { w: true, c: true })); /* 履歴・有酸素・月間サマリー・ホームを1回ずつ描く */
 step(() => fitTimer(true));
 step(() => { if (storageWarn) window.alert('保存データの一部を読み込めませんでした。バックアップから復元してください。', 7000); });
 })();
