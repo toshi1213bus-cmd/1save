@@ -109,24 +109,23 @@ function updateSummary() {
 /* ===== 画面更新の入口（ここだけが描画を呼ぶ）
    ・同じ操作の中で何度 renderWorkouts / renderCardios が呼ばれても、終わったあとに1回ずつだけ描く
    ・見えていない画面（ホーム／月間・設定）は描かず、タブを開いたときに描く ===== */
-const rCore = window.renderWorkouts; /* 履歴リスト＋トレのポイント */
-const rInner = function () { rCore(); decorateHistory(); }; /* 描いたあとに「グラフ推移」ボタンとグラフ枠を足す */
-const cInner = window.renderCardios; /* 有酸素リスト＋比較ポイント */
+const rCore = window.renderWorkouts;
+const rInner = function () { rCore(); decorateHistory(); };
+const cInner = window.renderCardios;
 const isShown = id => { const e = document.getElementById(id); return !!e && !e.classList.contains('hidden'); };
 function paint(w, c, all) {
   if (w || all) rInner();
   if (c || all) cInner();
-  updateSummary(); /* 月間サマリーの2行は、内側の描画のあとに上書きする */
+  updateSummary();
   if (isShown('tabContentSettings')) { renderCalendar(); if (all) renderMenuSummary(); }
   if ((w || all) && isShown('tabContentHome')) renderHome();
-  if (sheetEl) renderSheet(); /* 日付ボトムシートが開いていれば最新化 */
+  if (sheetEl) renderSheet();
 }
 let depth = 0, dirtyW = false, dirtyC = false, dirtyAll = false;
 function request(w, c, all) {
   if (depth) { dirtyW = dirtyW || w; dirtyC = dirtyC || c; dirtyAll = dirtyAll || all; return; }
   paint(w, c, all);
 }
-/* 中の描画要求をためておき、抜けるときにまとめて1回だけ描く */
 function batch(fn) {
   depth++;
   try { return fn(); }
@@ -141,7 +140,6 @@ function batch(fn) {
 window.renderWorkouts = function () { request(true, false, false); };
 window.renderCardios = function () { request(false, true, false); };
 window.refreshAll = function () { request(true, true, true); };
-/* メニュー（テンプレ）だけが変わったとき：見えている画面だけ更新 */
 function paintMenu() {
   if (isShown('tabContentSettings')) renderMenuSummary();
   if (isShown('tabContentHome')) renderHome();
@@ -167,7 +165,6 @@ window.deleteWorkout = async function (id) {
   const gone = workouts.find(i => i.id === id);
   workouts = workouts.filter(i => i.id !== id);
   if (!safeSave('simple_workouts', workouts)) { workouts = prevW; renderWorkouts(); return; }
-  /* その日の記録が0件になったら、部位の情報も消す */
   if (gone && !workouts.some(i => i.dateStr === gone.dateStr) && dayPplMap[gone.dateStr] !== undefined) {
     const nextP = Object.assign({}, dayPplMap);
     delete nextP[gone.dateStr];
@@ -188,7 +185,6 @@ function toggle(h, sel) {
   const hidden = h.nextElementSibling.classList.toggle('hidden');
   h.querySelector(sel).classList.toggle('is-open', !hidden);
 }
-/* 日付行：種目一覧を開いたらグラフは閉じる（排他） */
 window.toggleDayAccordion = h => {
   toggle(h, '.day-toggle-icon');
   const row = h.closest('[data-day]');
@@ -196,19 +192,31 @@ window.toggleDayAccordion = h => {
 };
 window.toggleExerciseAccordion = h => toggle(h, '.ex-toggle-icon');
 
-/* ===== 履歴の「グラフ推移」（その日以前の記録日のうち直近5回分の総負荷 Σ weight × reps）
-   ・日付ヘッダーの PUSH/PULL/LEGS/OTHER の横にボタン。大きさはホームの展開グラフと同じ（320×138・日付あり）
-   ・グラフを開く → その日の種目一覧（.day-content）を閉じる。種目一覧を開く → グラフを閉じる ===== */
+/* ===== 履歴の「グラフ推移」 ===== */
 const graphOpen = new Set();
 function graphHtml(d) {
+  const targetType = pplOf(d);
   const per = {};
   workouts.forEach(w => {
-    if (w.dateStr <= d) per[w.dateStr] = (per[w.dateStr] || 0) + w.setList.reduce((a, x) => a + x.weight * x.reps, 0);
+    if (w.dateStr <= d && pplOf(w.dateStr) === targetType) {
+      per[w.dateStr] = (per[w.dateStr] || 0) + w.setList.reduce((a, x) => a + x.weight * x.reps, 0);
+    }
   });
   const ds = Object.keys(per).sort().slice(-5);
-  if (ds.length < 2) return '<div class="hm-sub">2回以上の記録でグラフが出ます。</div>';
-  return '<div class="hm-leg"><span class="lg-g">総負荷</span></div>' + line(ds.map(x => Math.round(per[x])), 320, 138, ds);
+  if (ds.length < 2) return '<div class="hm-sub">' + targetType + ' の記録が2回以上あるとグラフが出ます。</div>';
+  return '<div class="hm-leg"><span class="lg-g">' + targetType + ' 総負荷</span></div>' + line(ds.map(x => Math.round(per[x])), 320, 138, ds);
 }
+window.updateDayPpl = function (dateStr, selectElem) {
+  const prev = dayPplMap[dateStr];
+  dayPplMap[dateStr] = selectElem.value;
+  if (!safeSave('simple_day_ppl', dayPplMap)) {
+    if (prev === undefined) delete dayPplMap[dateStr];
+    else dayPplMap[dateStr] = prev;
+    selectElem.value = pplOf(dateStr);
+    return;
+  }
+  renderWorkouts();
+};
 function hideGraph(row) {
   const g = row.querySelector('.day-graph'), b = row.querySelector('.gr-btn');
   graphOpen.delete(row.dataset.day);
@@ -222,7 +230,7 @@ function showGraph(row) {
   g.innerHTML = graphHtml(row.dataset.day);
   g.classList.remove('hidden');
   if (b) { b.classList.add('on'); b.setAttribute('aria-pressed', 'true'); }
-  if (c) c.classList.add('hidden'); /* 種目一覧（セット内訳・編集・削除）は隠す */
+  if (c) c.classList.add('hidden');
   const ic = row.querySelector('.day-toggle-icon');
   if (ic) ic.classList.remove('is-open');
 }
@@ -250,9 +258,8 @@ function decorateHistory() {
     }
     if (graphOpen.has(d)) showGraph(row);
   });
-  [...graphOpen].forEach(d => { if (!days.has(d)) graphOpen.delete(d); }); /* 一覧に出ていない日は忘れる */
+  [...graphOpen].forEach(d => { if (!days.has(d)) graphOpen.delete(d); });
 }
-/* 別ページへ移動したら、履歴の種目一覧・セット内訳・グラフをすべて閉じる */
 function closeHistory() {
   const list = document.getElementById('workoutList');
   if (!list) return;
@@ -280,10 +287,7 @@ const origBeep = window.playSingleBeep;
 window.playSingleBeep = function () { origBeep(); buzz(150); };
 document.addEventListener('click', e => { if (e.target.closest('button')) buzz(10); });
 
-/* ===== 専用テンキー（kg／回／有酸素の分。OSのキーボードは出さない） =====
-   ・入力欄は readonly。タップで金枠ハイライト＋画面下にテンキー
-   ・.5 は kg のときだけ有効（付与／すでに付いていれば外すトグル）
-   ・完了：kg → 同じ行の回へ移動（テンキーは開いたまま）／回・分 → 閉じる ===== */
+/* ===== 専用テンキー（kg／回／有酸素の分。OSのキーボードは出さない） ===== */
 const PAD_SEL = '.weight-input, .reps-input, #cardioMinutes';
 const CARDIO_MAX = 1440;
 const padEl = document.createElement('div');
@@ -316,7 +320,6 @@ function syncPad() {
   const half = padEl.querySelector('[data-k="half"]');
   half.disabled = !padInput || padKind(padInput) !== 'kg';
 }
-/* 下タブ(#bottomNav)は出したまま、その上にテンキーを載せる。高さを測って CSS 変数に渡す（本文の下余白に使う） */
 const navEl = document.getElementById('bottomNav');
 function padMetrics() {
   const st = document.documentElement.style;
@@ -349,7 +352,7 @@ function padPress(k) {
   const kind = padKind(padInput);
   let v = padInput.value;
   if (/^\d$/.test(k)) {
-    if (v.indexOf('.') >= 0) return; /* .5 が付いているときは先に ⌫ で外す */
+    if (v.indexOf('.') >= 0) return;
     const nx = v === '0' ? k : v + k;
     if (!padLimitOk(kind, nx)) return;
     v = nx;
@@ -383,8 +386,6 @@ document.addEventListener('click', e => {
   const k = e.target.closest('#numpad [data-k]');
   if (k && !k.disabled) padPress(k.dataset.k);
 });
-/* ＋セット：テンキーが開いていれば、追加した行の kg へ移す（古い行や画面外に残さない）。開いていなければ何もしない
-   ※引数なしの呼び出し＝ボタン。履歴や候補からの自動追加（引数あり）では動かさない */
 const addRowCore = window.addSetRow;
 window.addSetRow = function () {
   addRowCore.apply(this, arguments);
@@ -399,7 +400,6 @@ window.removeSetRow = function (btn) {
   if (row && padInput && row.contains(padInput)) closePad();
   return rmRowCore.apply(this, arguments);
 };
-/* 種目名など、通常のキーボードを使う欄に触れたらテンキーは閉じる */
 document.addEventListener('focusin', e => {
   const t = e.target;
   if (t && t.closest && !t.closest(PAD_SEL) && /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName)) closePad();
@@ -483,14 +483,7 @@ function series(name) {
   return Object.keys(map).sort().slice(-5).map(d => ({ d, v: metric(map[d]), rm: est1RM(map[d]) }));
 }
 
-/* ===== 調子ラベル（日別推移 v の末尾で判定。同日は series() で合算済み。上から順に最初に当てはまったものを出す）
-   プラトー検知！！：3回連続横ばい（n>=3 かつ a=b=c）                   plat（文字赤・枠金）
-   絶好調！！　　　：2回連続で上昇（n>=3 かつ a>b>c）                   hot （金文字・金枠）
-   上昇傾向　　　　：直近が上昇（a>b）                                  up  （金文字・金枠）
-   停滞注意　　　　：2回横ばい（a=b。3回連続は上でプラトー）            flat（赤文字・赤枠）
-   下降傾向　　　　：直近が下降（a<b）                                  down（赤文字・赤枠）
-   記録なし　　　　：その種目の記録が1件もない                          none（白系・枠なし）
-   記録が1回だけのときは比べる相手がないのでラベルは出さない ===== */
+/* ===== 調子ラベル ===== */
 function trendOf(v) {
   const n = v.length;
   if (n === 0) return { cls: 'none', txt: '記録なし' };
@@ -506,8 +499,7 @@ function trendOf(v) {
   return { cls: 'down', txt: '下降傾向' };
 }
 
-/* ===== PR判定：今日（同日全セット合算）の metric が、昨日以前の1日単位の最高値を上回ったら true。
-   過去記録がゼロ（初回）なら対象外 ===== */
+/* ===== PR判定 ===== */
 function isPR(name, today) {
   const prev = {};
   workouts.filter(w => w.name.trim() === name && w.dateStr < today)
@@ -538,11 +530,9 @@ function todayType() {
 }
 window.homeType = function (t) { override = { day: dstr(new Date()), type: t }; homeOpen = null; renderHome(); };
 
-/* ===== 固定メニュー・テンプレート
-   各部位に4枠（名前＋種目リスト on/off）。選択中の枠の中身を menuData（simple_menu）へ常に同期する ===== */
+/* ===== 固定メニュー・テンプレート ===== */
 const SLOT_N = 4, TPL_KEY = 'simple_menu_tpl', NAME_W = 10;
 let tplData = null;
-/* テンプレート名：全角=2・半角=1として合計10まで（全角5文字／半角10文字） */
 function fitName(s) {
   let w = 0, out = '';
   for (const ch of String(s == null ? '' : s)) {
@@ -595,7 +585,6 @@ function syncMenuFromTpl() {
   menuData = m;
 }
 function saveMenu() { return safeSave('simple_menu', menuData); }
-/* テンプレートと simple_menu をまとめて保存 */
 function persistTpl() {
   syncMenuFromTpl();
   const a = safeSave(TPL_KEY, tplData);
@@ -616,7 +605,6 @@ function ensureMenu() {
   if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
     tplData = normTpl(raw);
   } else {
-    /* 旧データ（simple_menu だけ／何も無い）は各部位の1枠目へ */
     const base = menuData ? normMenu(menuData) : buildFromHistory();
     tplData = normTpl(null);
     TYPES.forEach(t => { const s = tplData[t].slots[0]; s.on = base[t].on; s.off = base[t].off; });
@@ -624,7 +612,6 @@ function ensureMenu() {
   persistTpl();
 }
 window.tplExport = function () { ensureMenu(); return JSON.parse(JSON.stringify(tplData)); };
-/* 復元：新形式はそのまま、旧形式（menuのみ）は各部位の1枠目へ。保存に失敗したら例外（呼び出し側で巻き戻し） */
 window.tplImport = function (rawTpl, rawMenu) {
   if (rawTpl && typeof rawTpl === 'object' && !Array.isArray(rawTpl)) {
     tplData = normTpl(rawTpl);
@@ -657,12 +644,8 @@ function lastRec(name, today) {
   return workouts.filter(w => w.name.trim() === name && w.dateStr < today).sort((a, b) => (a.dateStr < b.dateStr ? -1 : 1)).pop() || null;
 }
 
-/* ===== ホーム ===== */
+/* ===== ホーム・フォームヘッダ連携 ===== */
 let homeOpen = null, homeNames = [];
-/* ===== トレーニングのフォーム上部（#formHeaderContainer）をここで組み立てる
-   ・日付指定（formDate）がある → 「○/○ の記録を追加（解除）」
-   ・ホームの「入力」から来た → 「入力中（キャンセル）」を、日付指定の下に並べる（上書きしない）
-   ・編集中 → 「編集中（キャンセル）」（日付指定は裏で保持し、編集が終わると戻る） ===== */
 let homeInput = false, homeInputName = null;
 function hdrRow(title, fn, label) {
   return '<div class="flex justify-between items-center mb-2.5"><h2 class="text-sm font-semibold text-orange-400 uppercase tracking-wider">' + title +
@@ -684,7 +667,12 @@ function hideSuggest() {
   if (box) { box.classList.add('hidden'); box.innerHTML = ''; }
 }
 window.setFormDate = function (ds) { formDate = ds || null; renderFormHeader(); };
-/* リセット：保存（追加）のあとは日付指定も解除。キャンセル／編集の終了では日付指定を維持する */
+function clearFocusAndPad() {
+  closePad();
+  if (document.activeElement && typeof document.activeElement.blur === 'function') {
+    document.activeElement.blur();
+  }
+}
 const resetCore = window.resetForm;
 window.resetForm = function (keep) {
   const keepDate = (keep === true || editingId !== null) ? formDate : null;
@@ -693,11 +681,13 @@ window.resetForm = function (keep) {
   homeInput = false;
   homeInputName = null;
   hideSuggest();
-  closePad();
+  clearFocusAndPad();
   renderFormHeader();
 };
-window.cancelEdit = function () { window.resetForm(true); };
-/* 編集の開始：日付指定（formDate）は消さない */
+window.cancelEdit = function () {
+  window.resetForm(true);
+  clearFocusAndPad();
+};
 const editCore = window.editWorkout;
 window.editWorkout = function (id) {
   const keep = formDate;
@@ -707,13 +697,23 @@ window.editWorkout = function (id) {
   hideSuggest();
   renderFormHeader();
 };
-/* 種目名を別の名前に書き換えたら、前回のセット内容と「入力中」の紐づきを外す。入力に合う候補は常に最新化 */
+const applySuggCore = window.applySuggestion;
+window.applySuggestion = function (id) {
+  applySuggCore.apply(this, arguments);
+  if (editingId === null) {
+    const nameVal = document.getElementById('exerciseName').value.trim();
+    homeInput = true;
+    homeInputName = nameVal;
+    hideSuggest();
+    renderFormHeader();
+  }
+};
 const suggestCore = window.checkExerciseSuggestion;
 window.checkExerciseSuggestion = function () {
   const inp = document.getElementById('exerciseName');
   if (homeInput && inp && inp.value.trim() !== homeInputName) {
     const v = inp.value, keep = formDate;
-    resetCore(); /* セット行・候補・ヘッダーを初期状態に（種目名と日付指定は戻す） */
+    resetCore();
     inp.value = v;
     formDate = keep;
     homeInput = false;
@@ -725,7 +725,7 @@ window.checkExerciseSuggestion = function () {
 window.homeFill = function (i) {
   const name = homeNames[i];
   if (name === undefined) return;
-  if (editingId !== null) window.resetForm(true); /* 編集は中断（日付指定は維持） */
+  if (editingId !== null) window.resetForm(true);
   switchTab('workout');
   const rec = lastRec(name, dstr(new Date()));
   if (rec) applySuggestion(rec.id);
@@ -756,7 +756,6 @@ function renderHome() {
   const todays = workouts.filter(w => w.dateStr === today);
   const doneN = names.filter(n => todays.some(t => t.name.trim() === n)).length;
   const allDone = doneN === names.length;
-  /* 全完了のときは右上のバッジを出さず、代わりに画面中央のスタンプ（#homeStamp）を出す */
   h += '<div class="hm-card"><div class="hm-pad" style="padding-bottom:12px"><div class="hm-exh"><div class="hm-lb">今日のメニュー</div><div class="hm-lb hm-gold">' +
     doneN + ' / ' + names.length + ' 完了</div></div><div class="hm-prog"><div style="width:' +
     Math.round(doneN / names.length * 100) + '%"></div></div></div>';
@@ -788,10 +787,10 @@ document.addEventListener('click', e => {
   if (!r || e.target.closest('.hm-in')) return;
   const n = homeNames[parseInt(r.dataset.i, 10)];
   if (n === undefined) return;
-  homeOpen = homeOpen === n ? null : n; renderHome(); });
+  homeOpen = homeOpen === n ? null : n; renderHome();
+});
 
-/* ===== 種目の編集（画面全体。保存まで確定しない。戻る操作＝キャンセル）
-   各部位で「現在オンの枠」を開く。種目リストとテンプレート名をまとめて保存 ===== */
+/* ===== 種目の編集 ===== */
 let draft = null, editType = 'PUSH', pastCache = [];
 function renderEditor() {
   const o = document.getElementById('menuEditor');
@@ -842,7 +841,6 @@ function leaveEditor() {
   if (history.state && history.state.me) history.back(); else closeEditor();
 }
 window.addEventListener('popstate', closeEditor);
-/* テンプレート名の入力：変換中は触らず、確定したら文字数を超えた分を切って下書きへ */
 function onEditorInput(e) {
   if (!draft || !e.target || e.target.id !== 'meName' || e.isComposing) return;
   const v = fitName(e.target.value);
@@ -893,7 +891,6 @@ window.openMenuEditor = function () {
   history.pushState({ me: 1 }, '');
   renderEditor();
 };
-/* 「月間/設定」タブ：各部位の4枠ボタン（オン＝ゴールド塗り、オフ＝金枠）。タップで即切り替え */
 function renderMenuSummary() {
   const el = document.getElementById('menuSummary');
   if (!el) return;
@@ -932,9 +929,7 @@ function renderCalendar() {
     '</div><div class="cal-legend"><span><i class="cal-dot"></i>トレーニング</span><span><i class="cal-ring"></i>有酸素</span></div>';
 }
 
-/* ===== 日付タップ：ボトムシート
-   上＝日付＋PUSH/PULL/LEGS/OTHER、中＝トレ種目アコーディオン、下＝有酸素、最下部＝追加ボタン（未来日なし）
-   閉じる：背景タップ／✕／ブラウザの戻る ===== */
+/* ===== 日付タップ：ボトムシート ===== */
 let sheetEl = null, sheetDate = null;
 function sheetHtml(d) {
   const today = dstr(new Date());
@@ -1020,7 +1015,6 @@ function openSheet(d) {
   history.pushState({ sheet: 1 }, '');
   renderSheet();
 }
-/* 編集：シートを閉じてトレーニングタブの編集状態へ */
 window.sheetEdit = function (id) {
   closeSheet();
   switchTab('workout');
@@ -1031,21 +1025,19 @@ document.addEventListener('click', e => {
   if (c) openSheet(c.dataset.d);
 });
 
-/* ===== 保存（1か所に集約）
-   core（index.html の saveWorkout）→ 部位の記録／新種目の追加 → 画面更新1回 → 振動・通知・連打ロック の順
-   保存後はフォーカスを当てない（キーボード・テンキーとも勝手に開かない） ===== */
+/* ===== 保存（1か所に集約） ===== */
 const saveCore = window.saveWorkout;
 window.saveWorkout = function () {
   const btn = document.getElementById('saveBtn');
   if (btn && btn.disabled) return;
   const today = dstr(new Date());
-  const day = (editingId === null && formDate) || today; /* 「この日にトレを追加」の日付 */
+  const day = (editingId === null && formDate) || today;
   const type = day === today ? todayType() : pplOf(day);
   const name = document.getElementById('exerciseName').value.trim();
   const before = localStorage.getItem('simple_workouts');
   let saved = false;
   batch(() => {
-    saveCore.apply(this, arguments); /* 検証・保存・フォームのリセット（描画はためられる） */
+    saveCore.apply(this, arguments);
     saved = localStorage.getItem('simple_workouts') !== before;
     if (!saved) return;
     if (dayPplMap[day] === undefined && workouts.some(w => w.dateStr === day)) {
@@ -1058,7 +1050,7 @@ window.saveWorkout = function () {
       s.on.push(name);
       persistTpl();
     }
-  }); /* ← ここで必要な画面を1回ずつ描く */
+  });
   if (saved) {
     closePad();
     if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
@@ -1082,9 +1074,8 @@ window.saveCardio = function () {
 const TABS = { home: 'tabContentHome', workout: 'tabContentWorkout', cardio: 'tabContentCardio', settings: 'tabContentSettings' };
 window.switchTab = function (name) {
   if (alarmInterval) stopTimer();
-  closePad(); /* 下タブが前面にあっても、移動先にテンキーを残さない */
-  if (name !== 'workout') closeHistory(); /* 別ページへ移動したら履歴の種目一覧・セット内訳・グラフを閉じる */
-  /* 画面を切り替えたら、履歴の表示件数は5件に戻す */
+  closePad();
+  if (name !== 'workout') closeHistory();
   if (visibleDaysCount !== 5 || visibleCardioDaysCount !== 5) {
     visibleDaysCount = 5;
     visibleCardioDaysCount = 5;
@@ -1094,13 +1085,12 @@ window.switchTab = function (name) {
   Object.keys(TABS).forEach(k =>
     document.getElementById(TABS[k]).classList.toggle('hidden', k !== name));
   document.querySelectorAll('#bottomNav button').forEach(b => b.classList.toggle('on', b.dataset.t === name));
-  /* 見えていなかった画面は、開くときに最新の内容で描く */
   if (name === 'home') renderHome();
   if (name === 'settings') { updateSummary(); renderCalendar(); renderMenuSummary(); }
   window.scrollTo(0, 0);
 };
 
-/* 起動：保存済みのテーマを適用し、履歴と有酸素を1回ずつ描き、ホームはタブ表示のときに1回描く */
+/* 起動 */
 applyTheme(getTheme());
 rInner();
 cInner();
