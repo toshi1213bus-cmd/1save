@@ -109,7 +109,8 @@ function updateSummary() {
 /* ===== 画面更新の入口（ここだけが描画を呼ぶ）
    ・同じ操作の中で何度 renderWorkouts / renderCardios が呼ばれても、終わったあとに1回ずつだけ描く
    ・見えていない画面（ホーム／月間・設定）は描かず、タブを開いたときに描く ===== */
-const rInner = window.renderWorkouts; /* 履歴リスト＋トレのポイント */
+const rCore = window.renderWorkouts; /* 履歴リスト＋トレのポイント */
+const rInner = function () { rCore(); decorateHistory(); }; /* 描いたあとに「グラフ推移」ボタンとグラフ枠を足す */
 const cInner = window.renderCardios; /* 有酸素リスト＋比較ポイント */
 const isShown = id => { const e = document.getElementById(id); return !!e && !e.classList.contains('hidden'); };
 function paint(w, c, all) {
@@ -187,8 +188,79 @@ function toggle(h, sel) {
   const hidden = h.nextElementSibling.classList.toggle('hidden');
   h.querySelector(sel).classList.toggle('is-open', !hidden);
 }
-window.toggleDayAccordion = h => toggle(h, '.day-toggle-icon');
+/* 日付行：種目一覧を開いたらグラフは閉じる（排他） */
+window.toggleDayAccordion = h => {
+  toggle(h, '.day-toggle-icon');
+  const row = h.closest('[data-day]');
+  if (row && !h.nextElementSibling.classList.contains('hidden')) hideGraph(row);
+};
 window.toggleExerciseAccordion = h => toggle(h, '.ex-toggle-icon');
+
+/* ===== 履歴の「グラフ推移」（その日以前の記録日のうち直近5回分の総負荷 Σ weight × reps）
+   ・日付ヘッダーの PUSH/PULL/LEGS/OTHER の横にボタン。大きさはホームの展開グラフと同じ（320×138・日付あり）
+   ・グラフを開く → その日の種目一覧（.day-content）を閉じる。種目一覧を開く → グラフを閉じる ===== */
+const graphOpen = new Set();
+function graphHtml(d) {
+  const per = {};
+  workouts.forEach(w => {
+    if (w.dateStr <= d) per[w.dateStr] = (per[w.dateStr] || 0) + w.setList.reduce((a, x) => a + x.weight * x.reps, 0);
+  });
+  const ds = Object.keys(per).sort().slice(-5);
+  if (ds.length < 2) return '<div class="hm-sub">2回以上の記録でグラフが出ます。</div>';
+  return '<div class="hm-leg"><span class="lg-g">総負荷</span></div>' + line(ds.map(x => Math.round(per[x])), 320, 138, ds);
+}
+function hideGraph(row) {
+  const g = row.querySelector('.day-graph'), b = row.querySelector('.gr-btn');
+  graphOpen.delete(row.dataset.day);
+  if (g) { g.classList.add('hidden'); g.innerHTML = ''; }
+  if (b) { b.classList.remove('on'); b.setAttribute('aria-pressed', 'false'); }
+}
+function showGraph(row) {
+  const g = row.querySelector('.day-graph'), b = row.querySelector('.gr-btn'), c = row.querySelector('.day-content');
+  if (!g) return;
+  graphOpen.add(row.dataset.day);
+  g.innerHTML = graphHtml(row.dataset.day);
+  g.classList.remove('hidden');
+  if (b) { b.classList.add('on'); b.setAttribute('aria-pressed', 'true'); }
+  if (c) c.classList.add('hidden'); /* 種目一覧（セット内訳・編集・削除）は隠す */
+  const ic = row.querySelector('.day-toggle-icon');
+  if (ic) ic.classList.remove('is-open');
+}
+window.toggleDayGraph = function (d) {
+  const list = document.getElementById('workoutList');
+  const row = list && list.querySelector('[data-day="' + d + '"]');
+  if (!row) return;
+  const g = row.querySelector('.day-graph');
+  if (g && g.classList.contains('hidden')) showGraph(row); else hideGraph(row);
+};
+function decorateHistory() {
+  const list = document.getElementById('workoutList');
+  if (!list) return;
+  const days = new Set();
+  list.querySelectorAll('[data-day]').forEach(row => {
+    const d = row.dataset.day;
+    days.add(d);
+    const sel = row.querySelector('select');
+    if (sel && !row.querySelector('.gr-btn')) {
+      sel.insertAdjacentHTML('afterend', '<button type="button" class="gr-btn" aria-pressed="false" onclick="event.stopPropagation(); toggleDayGraph(\'' + d + '\')">グラフ推移</button>');
+    }
+    if (!row.querySelector('.day-graph')) {
+      const c = row.querySelector('.day-content');
+      if (c) c.insertAdjacentHTML('afterend', '<div class="day-graph hm-big2 hidden"></div>');
+    }
+    if (graphOpen.has(d)) showGraph(row);
+  });
+  [...graphOpen].forEach(d => { if (!days.has(d)) graphOpen.delete(d); }); /* 一覧に出ていない日は忘れる */
+}
+/* 別ページへ移動したら、履歴の種目一覧・セット内訳・グラフをすべて閉じる */
+function closeHistory() {
+  const list = document.getElementById('workoutList');
+  if (!list) return;
+  list.querySelectorAll('.day-content, .ex-content').forEach(e => e.classList.add('hidden'));
+  list.querySelectorAll('.day-toggle-icon, .ex-toggle-icon').forEach(e => e.classList.remove('is-open'));
+  list.querySelectorAll('[data-day]').forEach(hideGraph);
+  graphOpen.clear();
+}
 
 /* ===== タイマー：残り時間バー・終了時の発光・振動 ===== */
 const disp = document.getElementById('timerDisplay');
@@ -244,9 +316,18 @@ function syncPad() {
   const half = padEl.querySelector('[data-k="half"]');
   half.disabled = !padInput || padKind(padInput) !== 'kg';
 }
+/* 下タブ(#bottomNav)は出したまま、その上にテンキーを載せる。高さを測って CSS 変数に渡す（本文の下余白に使う） */
+const navEl = document.getElementById('bottomNav');
+function padMetrics() {
+  const st = document.documentElement.style;
+  st.setProperty('--nav-h', (navEl ? navEl.offsetHeight : 0) + 'px');
+  st.setProperty('--np-h', padEl.offsetHeight + 'px');
+}
+window.addEventListener('resize', () => { if (padInput) padMetrics(); });
 function openPad(el) {
   if (padInput && padInput !== el) padInput.classList.remove('np-active');
   padInput = el;
+  padMetrics();
   el.classList.add('np-active');
   padEl.classList.add('show');
   padEl.setAttribute('aria-hidden', 'false');
@@ -302,6 +383,22 @@ document.addEventListener('click', e => {
   const k = e.target.closest('#numpad [data-k]');
   if (k && !k.disabled) padPress(k.dataset.k);
 });
+/* ＋セット：テンキーが開いていれば、追加した行の kg へ移す（古い行や画面外に残さない）。開いていなければ何もしない
+   ※引数なしの呼び出し＝ボタン。履歴や候補からの自動追加（引数あり）では動かさない */
+const addRowCore = window.addSetRow;
+window.addSetRow = function () {
+  addRowCore.apply(this, arguments);
+  if (arguments.length || !padInput) return;
+  const rows = document.querySelectorAll('#setsContainer .set-row');
+  const next = rows.length && rows[rows.length - 1].querySelector('.weight-input');
+  if (next) openPad(next); else closePad();
+};
+const rmRowCore = window.removeSetRow;
+window.removeSetRow = function (btn) {
+  const row = btn && btn.closest('.set-row');
+  if (row && padInput && row.contains(padInput)) closePad();
+  return rmRowCore.apply(this, arguments);
+};
 /* 種目名など、通常のキーボードを使う欄に触れたらテンキーは閉じる */
 document.addEventListener('focusin', e => {
   const t = e.target;
@@ -386,24 +483,27 @@ function series(name) {
   return Object.keys(map).sort().slice(-5).map(d => ({ d, v: metric(map[d]), rm: est1RM(map[d]) }));
 }
 
-/* ===== 調子ラベル（日別推移 v の末尾3点で判定。同日は series() で合算済み）
-   絶好調！！：直近2回連続で伸びている（v[n-1] > v[n-2] > v[n-3]）
-   停滞注意　：直近3回が横ばい（v[n-1] = v[n-2] = v[n-3]）
-   上昇傾向　：最新が1回前より伸びている（絶好調以外）
-   下降傾向　：最新が1回前より下がっている
-   出さない　：記録1回以下／直近2回だけ横ばい ===== */
+/* ===== 調子ラベル（日別推移 v の末尾で判定。同日は series() で合算済み。上から順に最初に当てはまったものを出す）
+   プラトー検知！！：3回連続横ばい（n>=3 かつ a=b=c）                   plat（文字赤・枠金）
+   絶好調！！　　　：2回連続で上昇（n>=3 かつ a>b>c）                   hot （金文字・金枠）
+   上昇傾向　　　　：直近が上昇（a>b）                                  up  （金文字・金枠）
+   停滞注意　　　　：2回横ばい（a=b。3回連続は上でプラトー）            flat（赤文字・赤枠）
+   下降傾向　　　　：直近が下降（a<b）                                  down（赤文字・赤枠）
+   記録なし　　　　：その種目の記録が1件もない                          none（白系・枠なし）
+   記録が1回だけのときは比べる相手がないのでラベルは出さない ===== */
 function trendOf(v) {
   const n = v.length;
+  if (n === 0) return { cls: 'none', txt: '記録なし' };
   if (n < 2) return null;
   const a = v[n - 1], b = v[n - 2];
   if (n >= 3) {
     const c = v[n - 3];
+    if (a === b && b === c) return { cls: 'plat', txt: 'プラトー検知！！' };
     if (a > b && b > c) return { cls: 'hot', txt: '絶好調！！' };
-    if (a === b && b === c) return { cls: 'flat', txt: '停滞注意' };
   }
   if (a > b) return { cls: 'up', txt: '上昇傾向' };
-  if (a < b) return { cls: 'down', txt: '下降傾向' };
-  return null;
+  if (a === b) return { cls: 'flat', txt: '停滞注意' };
+  return { cls: 'down', txt: '下降傾向' };
 }
 
 /* ===== PR判定：今日（同日全セット合算）の metric が、昨日以前の1日単位の最高値を上回ったら true。
@@ -559,15 +659,81 @@ function lastRec(name, today) {
 
 /* ===== ホーム ===== */
 let homeOpen = null, homeNames = [];
+/* ===== トレーニングのフォーム上部（#formHeaderContainer）をここで組み立てる
+   ・日付指定（formDate）がある → 「○/○ の記録を追加（解除）」
+   ・ホームの「入力」から来た → 「入力中（キャンセル）」を、日付指定の下に並べる（上書きしない）
+   ・編集中 → 「編集中（キャンセル）」（日付指定は裏で保持し、編集が終わると戻る） ===== */
+let homeInput = false, homeInputName = null;
+function hdrRow(title, fn, label) {
+  return '<div class="flex justify-between items-center mb-2.5"><h2 class="text-sm font-semibold text-orange-400 uppercase tracking-wider">' + title +
+    '</h2><button type="button" onclick="' + fn + '" class="text-xs text-gray-400 hover:text-white">' + label + '</button></div>';
+}
+function renderFormHeader() {
+  const h = document.getElementById('formHeaderContainer');
+  if (!h) return;
+  let html = '';
+  if (editingId !== null) html = hdrRow('編集中', 'cancelEdit()', 'キャンセル');
+  else {
+    if (formDate) html += hdrRow(formatDate(formDate) + ' の記録を追加', 'setFormDate(null)', '解除');
+    if (homeInput) html += hdrRow('入力中', 'cancelEdit()', 'キャンセル');
+  }
+  h.innerHTML = html;
+}
+function hideSuggest() {
+  const box = document.getElementById('suggestionBox');
+  if (box) { box.classList.add('hidden'); box.innerHTML = ''; }
+}
+window.setFormDate = function (ds) { formDate = ds || null; renderFormHeader(); };
+/* リセット：保存（追加）のあとは日付指定も解除。キャンセル／編集の終了では日付指定を維持する */
+const resetCore = window.resetForm;
+window.resetForm = function (keep) {
+  const keepDate = (keep === true || editingId !== null) ? formDate : null;
+  resetCore();
+  formDate = keepDate;
+  homeInput = false;
+  homeInputName = null;
+  hideSuggest();
+  closePad();
+  renderFormHeader();
+};
+window.cancelEdit = function () { window.resetForm(true); };
+/* 編集の開始：日付指定（formDate）は消さない */
+const editCore = window.editWorkout;
+window.editWorkout = function (id) {
+  const keep = formDate;
+  editCore.apply(this, arguments);
+  formDate = keep;
+  if (editingId === id) { homeInput = false; homeInputName = null; }
+  hideSuggest();
+  renderFormHeader();
+};
+/* 種目名を別の名前に書き換えたら、前回のセット内容と「入力中」の紐づきを外す。入力に合う候補は常に最新化 */
+const suggestCore = window.checkExerciseSuggestion;
+window.checkExerciseSuggestion = function () {
+  const inp = document.getElementById('exerciseName');
+  if (homeInput && inp && inp.value.trim() !== homeInputName) {
+    const v = inp.value, keep = formDate;
+    resetCore(); /* セット行・候補・ヘッダーを初期状態に（種目名と日付指定は戻す） */
+    inp.value = v;
+    formDate = keep;
+    homeInput = false;
+    homeInputName = null;
+    renderFormHeader();
+  }
+  return suggestCore.apply(this, arguments);
+};
 window.homeFill = function (i) {
   const name = homeNames[i];
   if (name === undefined) return;
-  if (editingId !== null) resetForm();
-  setFormDate(null); /* ホームからの入力は常に今日 */
+  if (editingId !== null) window.resetForm(true); /* 編集は中断（日付指定は維持） */
   switchTab('workout');
   const rec = lastRec(name, dstr(new Date()));
   if (rec) applySuggestion(rec.id);
-  else { resetForm(); document.getElementById('exerciseName').value = name; }
+  else { window.resetForm(true); document.getElementById('exerciseName').value = name; }
+  homeInput = true;
+  homeInputName = name;
+  hideSuggest();
+  renderFormHeader();
 };
 function renderHome() {
   const el = document.getElementById('tabContentHome');
@@ -605,8 +771,10 @@ function renderHome() {
     h += '<div class="hm-ex' + (open ? ' open' : '') + '" data-i="' + i + '"><div class="hm-exh"><div class="hm-row2"><span class="hm-chk' + (t ? ' f' : '') + '"></span><div class="hm-en' + (t ? ' dn' : '') + '">' +
       escapeHtml(n) + '</div>' + (pr ? '<span class="hm-pr">PR達成！！</span>' : '') + '</div><div class="hm-act">' + (t ? '' : '<button type="button" class="hm-in" onclick="homeFill(' + i + ')">入力</button>') +
       '<span class="hm-chev"></span></div></div><div class="hm-mini"><div class="hm-st">' +
-      (b ? (t ? '今日 ' : '前回 ') + fmtSet(b) : '<span class="hm-sub">記録なし</span>') +
-      (tr ? '<span class="hm-tr ' + tr.cls + '">' + tr.txt + '</span>' : '') + '</div>' +
+      (b ? (t ? '今日 ' : '前回 ') + fmtSet(b) : '') +
+      (tr ? (tr.cls === 'plat' && open
+        ? '<span class="hm-trw"><span class="hm-tr plat">' + tr.txt + '</span><span class="hm-tip">レスト+1分or重量-10%</span></span>'
+        : '<span class="hm-tr ' + tr.cls + '">' + tr.txt + '</span>') : '') + '</div>' +
       (open || s.length < 2 ? '' : '<div class="hm-ch">' + line(s.map(x => x.v), 110, 34) + '</div>') +
       '</div>' +
       (open ? '<div class="hm-big2">' + (s.length > 1 ? line(s.map(x => x.v), 320, 138, s.map(x => x.d), s.map(x => x.rm)) : '<div class="hm-sub">2回以上の記録でグラフが出ます。</div>') +
@@ -711,6 +879,7 @@ function onEditorClick(e) {
   renderEditor();
 }
 window.openMenuEditor = function () {
+  closePad();
   ensureMenu();
   draft = {};
   TYPES.forEach(t => { const s = activeSlot(t); draft[t] = { name: s.name, on: s.on.slice(), off: s.off.slice() }; });
@@ -913,7 +1082,8 @@ window.saveCardio = function () {
 const TABS = { home: 'tabContentHome', workout: 'tabContentWorkout', cardio: 'tabContentCardio', settings: 'tabContentSettings' };
 window.switchTab = function (name) {
   if (alarmInterval) stopTimer();
-  closePad();
+  closePad(); /* 下タブが前面にあっても、移動先にテンキーを残さない */
+  if (name !== 'workout') closeHistory(); /* 別ページへ移動したら履歴の種目一覧・セット内訳・グラフを閉じる */
   /* 画面を切り替えたら、履歴の表示件数は5件に戻す */
   if (visibleDaysCount !== 5 || visibleCardioDaysCount !== 5) {
     visibleDaysCount = 5;
