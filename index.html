@@ -10,7 +10,7 @@ try { var _t = localStorage.getItem('iron_theme'); if (_t === 'ocean' || _t === 
 </script>
 <script src="https://cdn.tailwindcss.com"></script>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@300;500;600&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="theme.css?v=13">
+<link rel="stylesheet" href="theme.css?v=15">
 <meta name="theme-color" content="#0a0a0b">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon-192.png">
@@ -895,8 +895,10 @@ async function deleteCardio(id) {
   requestRender('c');
 }
 /* 履歴・日付シートの部位（PUSH/PULL/LEGS/OTHER）変更。失敗しても画面は保存結果（元の値）に揃える */
-function updateDayPpl(dateStr, selectElem) {
-  transact(['dayPpl'], () => { dayPplMap[dateStr] = selectElem.value; });
+function updateDayPpl(dateStr, v) {
+  const val = (v && typeof v === 'object') ? v.value : v; /* 部位名（PUSH/PULL/LEGS/OTHER）。要素が渡されても value を使う */
+  if (!PPL_TYPES.includes(val)) return;
+  transact(['dayPpl'], () => { dayPplMap[dateStr] = val; });
   requestRender('w');
 }
 
@@ -991,12 +993,7 @@ function drawWorkoutList() {
         <div class="flex items-center gap-2.5 flex-wrap">
           <span class="text-sm font-bold text-orange-400">${formatDate(dateStr)}</span>
           <span class="text-xs text-white font-bold">総負荷: <span class="text-white">${formattedVolume}</span>kg</span>
-          <select onclick="event.stopPropagation()" onchange="updateDayPpl('${dateStr}', this)" class="text-xs bg-gray-900 border border-gray-700 text-gray-200 font-bold rounded-lg px-2 py-1 focus:outline-none focus:border-orange-500">
-            <option value="PUSH" ${currentPpl === 'PUSH' ? 'selected' : ''}>PUSH</option>
-            <option value="PULL" ${currentPpl === 'PULL' ? 'selected' : ''}>PULL</option>
-            <option value="LEGS" ${currentPpl === 'LEGS' ? 'selected' : ''}>LEGS</option>
-            <option value="OTHER" ${currentPpl === 'OTHER' ? 'selected' : ''}>OTHER</option>
-          </select>
+          <button type="button" class="ppl-btn" aria-haspopup="dialog" onclick="event.stopPropagation(); pickPpl('${dateStr}')">${currentPpl}</button>
         </div>
         <span class="text-xs text-gray-400 day-toggle-icon">▼</span>
       </div>
@@ -1019,7 +1016,7 @@ function drawWorkoutList() {
             </div>
             <div class="flex items-center gap-2">
               <span class="text-xs text-gray-400 ex-toggle-icon">▼</span>
-              <button type="button" onclick="event.stopPropagation(); editWorkout('${item.id}')" class="text-xs text-gray-400 hover:text-white px-2 py-1 bg-gray-800 border border-gray-700 rounded-lg font-medium">編集</button>
+              <button type="button" onclick="event.stopPropagation(); editWorkout('${item.id}')" class="ex-edit">編集</button>
               <button type="button" onclick="event.stopPropagation(); deleteWorkout('${item.id}')" class="text-gray-500 hover:text-red-400 p-1">✕</button>
             </div>
           </div>
@@ -1202,6 +1199,6 @@ async function importFromJsonText() {
 }
 /* 起動時の描画・タブ切り替えは extras.js（showTab → requestRender）が1回だけ行う */
 </script>
-<script src="extras.js?v=13"></script>
+<script src="extras.js?v=15"></script>
 </body>
 </html>

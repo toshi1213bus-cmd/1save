@@ -43,6 +43,29 @@ function ask(msg, ok) {
 }
 window.askConfirm = ask;
 
+/* ===== 部位分類の選択モーダル（履歴・日付シート共通。ブラウザ標準の <select> は使わない）
+   確認ダイアログ（#modal）と同じ黒×金。現在の部位は金文字＋チェック。タップで即反映して閉じる／キャンセル・背景タップで閉じる ===== */
+window.pickPpl = function (d) {
+  if (document.getElementById('pplPicker')) return; /* 二重表示しない */
+  const cur = pplOf(d);
+  const o = document.createElement('div');
+  o.id = 'pplPicker';
+  o.setAttribute('role', 'dialog');
+  o.setAttribute('aria-modal', 'true');
+  o.innerHTML = '<div class="modal-box"><p>部位を選択</p><div class="pk-list">' +
+    PPL_TYPES.map(t => '<button type="button" class="pk-opt' + (t === cur ? ' cur' : '') + '" data-v="' + t + '"' +
+      (t === cur ? ' aria-current="true"' : '') + '>' + t + '</button>').join('') +
+    '</div><div class="modal-actions"><button type="button" data-v="">キャンセル</button></div></div>';
+  o.addEventListener('click', e => {
+    const b = e.target.closest('button');
+    if (!b && e.target !== o) return;
+    const v = b ? b.dataset.v : '';
+    o.remove();
+    if (v && v !== cur) updateDayPpl(d, v); /* 変えたときだけ保存して再描画 */
+  });
+  document.body.appendChild(o);
+};
+
 /* ===== テーマ切替（黒金／深海ブルー／森林グリーン）：localStorage に保存。グラフの色は変えない ===== */
 const THEME_KEY = 'iron_theme';
 const THEMES = ['gold', 'ocean', 'forest'];
@@ -150,13 +173,30 @@ function toggle(h, sel) {
   const ic = h.querySelector(sel);
   if (ic) ic.classList.toggle('is-open', !hidden);
 }
+/* シェブロンの向きを、開閉の実際の状態（.hidden の有無）に必ず合わせる（日付行・種目行とも ∨＝閉 / ∧＝開） */
+function syncChev(root) {
+  if (!root) return;
+  const all = sel => [...(root.matches(sel) ? [root] : []), ...root.querySelectorAll(sel)]; /* root 自身も対象に含める */
+  all('[data-day]').forEach(r => {
+    const c = r.querySelector('.day-content'), ic = r.querySelector('.day-toggle-icon');
+    if (c && ic) ic.classList.toggle('is-open', !c.classList.contains('hidden'));
+  });
+  all('[data-id]').forEach(r => {
+    const c = r.querySelector('.ex-content'), ic = r.querySelector('.ex-toggle-icon');
+    if (c && ic) ic.classList.toggle('is-open', !c.classList.contains('hidden'));
+  });
+}
 /* 日付行：種目一覧を開いたらグラフは閉じる（排他） */
 window.toggleDayAccordion = h => {
   toggle(h, '.day-toggle-icon');
   const row = h.closest('[data-day]');
   if (row && h.nextElementSibling && !h.nextElementSibling.classList.contains('hidden')) hideGraph(row);
+  if (row) syncChev(row);
 };
-window.toggleExerciseAccordion = h => toggle(h, '.ex-toggle-icon');
+window.toggleExerciseAccordion = h => {
+  toggle(h, '.ex-toggle-icon');
+  syncChev(h.closest('[data-id]'));
+};
 
 /* ===== 履歴の「グラフ推移」（対象日の部位と同じ部位の記録日だけを集め、その日以前の直近5回分の総負荷 Σ weight × reps）
    ・部位（PUSH/PULL/LEGS/OTHER）を履歴やカレンダーの日付シートで変えると、開いているグラフもその新しい部位の直近5回分に追従する
@@ -177,6 +217,7 @@ function hideGraph(row) {
   graphOpen.delete(row.dataset.day);
   if (g) { g.classList.add('hidden'); g.innerHTML = ''; }
   if (b) { b.classList.remove('on'); b.setAttribute('aria-pressed', 'false'); }
+  syncChev(row);
 }
 function showGraph(row) {
   const g = row.querySelector('.day-graph'), b = row.querySelector('.gr-btn'), c = row.querySelector('.day-content');
@@ -186,8 +227,7 @@ function showGraph(row) {
   g.classList.remove('hidden');
   if (b) { b.classList.add('on'); b.setAttribute('aria-pressed', 'true'); }
   if (c) c.classList.add('hidden'); /* 種目一覧（セット内訳・編集・削除）は隠す */
-  const ic = row.querySelector('.day-toggle-icon');
-  if (ic) ic.classList.remove('is-open');
+  syncChev(row); /* 種目一覧を閉じたので日付行のシェブロンも ∨ に戻す */
 }
 window.toggleDayGraph = function (d) {
   const list = document.getElementById('workoutList');
@@ -203,7 +243,7 @@ function decorateHistory() {
   list.querySelectorAll('[data-day]').forEach(row => {
     const d = row.dataset.day;
     days.add(d);
-    const sel = row.querySelector('select');
+    const sel = row.querySelector('.ppl-btn');
     if (sel && !row.querySelector('.gr-btn')) {
       sel.insertAdjacentHTML('afterend', '<button type="button" class="gr-btn" aria-pressed="false" onclick="event.stopPropagation(); toggleDayGraph(\'' + d + '\')">グラフ推移</button>');
     }
@@ -214,6 +254,7 @@ function decorateHistory() {
     if (graphOpen.has(d)) showGraph(row);
   });
   [...graphOpen].forEach(d => { if (!days.has(d)) graphOpen.delete(d); }); /* 一覧に出ていない日は忘れる */
+  syncChev(list); /* 再描画・グラフ復元のあとも、開閉とシェブロンの向きを揃える */
 }
 /* 別ページへ移動したら、履歴の種目一覧・セット内訳・グラフをすべて閉じる */
 function closeHistory() {
@@ -223,6 +264,7 @@ function closeHistory() {
   list.querySelectorAll('.day-toggle-icon, .ex-toggle-icon').forEach(e => e.classList.remove('is-open'));
   list.querySelectorAll('[data-day]').forEach(hideGraph);
   graphOpen.clear();
+  syncChev(list);
 }
 
 /* ===== タイマー：終了時の発光・振動／時間表示を左右ボタンのギリギリまで拡大（要素が無くても止まらない） ===== */
@@ -253,6 +295,47 @@ if (tmCenter) {
   if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => fitTimer(true)).catch(() => {});
 }
 document.addEventListener('click', e => { if (e.target.closest('button')) buzz(10); });
+
+/* ===== タイマー：数字の背後の円形・放射状の目盛りリング（計器風）
+   残り時間 ÷ セット時間 に合わせて目盛りが点灯。START で12時の位置から時計回りに消えていく（待機中＝全点灯／0秒・アラーム中＝全消灯）
+   数字の大きさ・タイマーの動作・音・バイブには触らない（index.html の変数 targetEndTime / lastTimerSec / alarmInterval を読むだけ） ===== */
+const RING_N = 60;
+let ringTicks = [], ringLit = -1;
+function buildRing() {
+  if (!tmCenter) return;
+  const NS = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(NS, 'svg');
+  svg.setAttribute('class', 'tm-ring');
+  svg.setAttribute('viewBox', '0 0 100 100');
+  svg.setAttribute('aria-hidden', 'true');
+  const rc = document.createElementNS(NS, 'circle');
+  rc.setAttribute('class', 'tm-rc');
+  rc.setAttribute('cx', '50'); rc.setAttribute('cy', '50'); rc.setAttribute('r', '39');
+  svg.appendChild(rc);
+  for (let i = 0; i < RING_N; i++) {
+    const a = i / RING_N * Math.PI * 2, major = i % 5 === 0, r0 = major ? 42 : 45, r1 = 48.5;
+    const t = document.createElementNS(NS, 'line');
+    t.setAttribute('class', 'tm-tk' + (major ? ' mj' : ''));
+    t.setAttribute('x1', (50 + Math.sin(a) * r0).toFixed(2)); t.setAttribute('y1', (50 - Math.cos(a) * r0).toFixed(2));
+    t.setAttribute('x2', (50 + Math.sin(a) * r1).toFixed(2)); t.setAttribute('y2', (50 - Math.cos(a) * r1).toFixed(2));
+    svg.appendChild(t);
+    ringTicks.push(t);
+  }
+  tmCenter.insertBefore(svg, tmCenter.firstChild);
+}
+function paintRing() {
+  if (!ringTicks.length || !isShown('tabContentWorkout')) return;
+  let frac = 0;
+  if (targetEndTime && lastTimerSec > 0) frac = Math.max(0, Math.min(1, (targetEndTime - Date.now()) / (lastTimerSec * 1000)));
+  else if (!alarmInterval && lastTimerSec > 0) frac = 1;
+  const lit = frac > 0 ? Math.max(1, Math.ceil(frac * RING_N - 1e-9)) : 0;
+  if (lit === ringLit) return;
+  ringLit = lit;
+  const off = RING_N - lit;
+  ringTicks.forEach((t, i) => { const on = i >= off; t.classList.toggle('on', on); t.classList.toggle('hd', on && i === off); });
+}
+safe(buildRing);
+setInterval(() => safe(paintRing), 100);
 
 /* ===== 専用テンキー（kg／回／有酸素の分。OSのキーボードは出さない） =====
    ・入力欄は readonly。タップで金枠ハイライト＋画面下にテンキー
@@ -903,9 +986,8 @@ function sheetHtml(d) {
   const items = workouts.filter(w => w.dateStr === d);
   const cs = cardios.filter(c => c.dateStr === d);
   const cur = pplOf(d);
-  const opts = TYPES.map(t => '<option value="' + t + '"' + (t === cur ? ' selected' : '') + '>' + t + '</option>').join('');
   let h = '<div class="sh-head"><span class="text-sm font-bold text-orange-400">' + fmtD(d) + '</span>' +
-    '<select onchange="updateDayPpl(\'' + d + '\', this)" class="text-xs bg-gray-900 border border-gray-700 text-gray-200 font-bold rounded-lg px-2 py-1 focus:outline-none focus:border-orange-500">' + opts + '</select>' +
+    '<button type="button" class="ppl-btn" aria-haspopup="dialog" onclick="pickPpl(\'' + d + '\')">' + cur + '</button>' +
     '<button type="button" class="sh-x" data-sh="close" aria-label="閉じる">✕</button></div><div class="sh-body">';
   h += '<div class="sh-sec">トレーニング</div>';
   if (items.length) {
@@ -916,7 +998,7 @@ function sheetHtml(d) {
         '<div class="flex justify-between items-center cursor-pointer select-none" onclick="toggleExerciseAccordion(this)">' +
         '<div class="flex items-center gap-2"><span class="text-sm font-bold text-white">' + escapeHtml(item.name) + '</span><span class="text-xs text-gray-500">(' + item.setList.length + 'セット)</span></div>' +
         '<div class="flex items-center gap-2"><span class="text-xs text-gray-400 ex-toggle-icon">▼</span>' +
-        '<button type="button" onclick="event.stopPropagation(); sheetEdit(\'' + item.id + '\')" class="text-xs text-gray-400 hover:text-white px-2 py-1 bg-gray-800 border border-gray-700 rounded-lg font-medium">編集</button>' +
+        '<button type="button" onclick="event.stopPropagation(); sheetEdit(\'' + item.id + '\')" class="ex-edit">編集</button>' +
         '<button type="button" onclick="event.stopPropagation(); deleteWorkout(\'' + item.id + '\')" class="text-gray-500 hover:text-red-400 p-1">✕</button></div></div>' +
         '<div class="ex-content hidden mt-2 pt-2 border-t border-gray-800 space-y-1">' + sets + '</div></div>';
     }).join('') + '</div>';
@@ -952,8 +1034,11 @@ function renderSheet() {
   });
   const nb = box.querySelector('.sh-body');
   if (nb) nb.scrollTop = top;
+  syncChev(box);
 }
 function removeSheet() {
+  const pk = document.getElementById('pplPicker'); /* 部位選択モーダルが開いたままシートが閉じても残さない */
+  if (pk) pk.remove();
   if (sheetEl) sheetEl.remove();
   sheetEl = null;
   sheetDate = null;
@@ -1001,6 +1086,7 @@ function showTab(name, extra) {
   if (alarmInterval) stopTimer();
   closePad(); /* 下タブが前面にあっても、移動先にテンキーを残さない */
   if (name !== 'workout') closeHistory(); /* 別ページへ移動したら履歴の種目一覧・セット内訳・グラフを閉じる */
+  if (name !== 'home') homeOpen = null; /* ホームの種目の展開（グラフ）も閉じる。次にホームへ戻ったときは閉じた状態で描く */
   const paging = resetPaging(); /* 履歴の表示件数は基準に戻す（トレーニング＝4件、有酸素＝5件） */
   Object.keys(TABS).forEach(k => {
     const el = document.getElementById(TABS[k]);
@@ -1011,6 +1097,7 @@ function showTab(name, extra) {
   const e = extra || {};
   requestRender({ w: !!e.w || paging.w, c: !!e.c || paging.c, view: name });
   fitTimer(); /* トレーニング画面が見えるようになったとき、タイマーの文字サイズを合わせる */
+  safe(paintRing); /* 目盛りリングも最新の状態に */
   window.scrollTo(0, 0);
 }
 window.switchTab = function (name) { showTab(name); };
