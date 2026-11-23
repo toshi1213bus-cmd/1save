@@ -200,7 +200,6 @@ div.bg-gray-900.border.overflow-hidden > input {
   caret-color: transparent;
   cursor: pointer;
 }
-:is(#monthlyCardioSummary, #compareWorkoutPoints, #compareCardioPoints),
 #workoutList :is(span, div).text-xs:not(.day-toggle-icon):not(.ex-toggle-icon),
 #cardioList span.text-xs {
   font-family: var(--num);
@@ -718,6 +717,25 @@ body.np-open { padding-bottom: calc(var(--np-h, 226px) + var(--nav-h, 56px) + 16
   transform: scale(0.97);
   box-shadow: 0 0 8px rgba(var(--gold-rgb), .45);
 }
+
+/* ================= 追加: 月間/設定タブの上サブタブ（月間/分析・設定）と分析カード =================
+   サブタブはホームの部位選択（.hm-ord）をそのまま使い、見出し・数値・区切りは詳細ページの部品（.dt-sec / .dt-grid / .dt-cell / .dt-v / .dt-u / .gr-btn）を流用 */
+.an-tabs { margin-top: 0; } /* .hm-pad の中に置くので、.hm-ord の上の余白は不要 */
+.an-tabs button { white-space: nowrap; } /* 「週間分析 11/23〜11/29」を折り返さない（文字サイズは上タブと同じ） */
+.an-note { padding-top: 12px; }
+.an-modes { padding: 0 16px 4px; } /* 月間推移の切替ボタン（トレ回数／有酸素／総負荷量）は見出しの下に1行 */
+.an-rng { font-size: 11px; letter-spacing: 0.1em; color: var(--muted); }
+.an-hd, .an-part { display: grid; grid-template-columns: 52px 1fr 1fr; align-items: center; gap: 8px; padding: 10px 14px; border-top: 1px solid var(--line); }
+.an-hd { padding: 8px 14px; }
+.an-t { font-size: 11px; letter-spacing: 0.2em; font-weight: 500; color: var(--gold); }
+.an-c { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; min-width: 0; }
+.an-part .dt-v { font-size: 17px; }
+.dt-cell .an-bd { margin-top: 4px; }
+/* 前週比・前月比バッジ（％は使わず差分のみ）。増＝金／減＝赤／±0・記録なし＝控えめ */
+.an-bd { display: inline-block; font-size: 11px; line-height: 1.5; letter-spacing: 0.05em; white-space: nowrap; padding: 0 6px; border: 1px solid var(--line); border-radius: 3px; color: var(--muted); }
+.an-bd.up { color: var(--gold); border-color: var(--gold-line); }
+.an-bd.down { color: #c0605a; border-color: #c0605a; }
+.an-bd.none { border-color: transparent; padding: 0; }
 
 /* ================= 追加: タブ切替のふわっとしたフェード（0.15s・わずかに下から浮き上がる）
    非表示→表示になるたびに自動で再生される。transform は使わない（position: fixed の子の基準がずれるため。top で動かす） ================= */
