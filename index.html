@@ -127,14 +127,12 @@ try { var _t = localStorage.getItem('iron_theme'); if (_t === 'ocean' || _t === 
     </div>
     <div class="bg-gray-800 border border-gray-700 rounded-2xl p-3.5 space-y-3">
       <h2 class="text-sm font-semibold text-orange-400 uppercase tracking-wider">バックアップ出力/復元</h2>
-      <div class="grid grid-cols-2 gap-2 pt-1">
+      <div class="pt-1">
         <button type="button" onclick="exportData()" class="w-full bg-gray-900 hover:bg-gray-700 text-gray-200 py-3 rounded-xl border border-gray-700 text-xs font-bold transition">
           出力 (JSON)
         </button>
-        <button type="button" onclick="exportTxt()" class="w-full bg-gray-900 hover:bg-gray-700 text-gray-200 py-3 rounded-xl border border-gray-700 text-xs font-bold transition">
-          出力 (TXT)
-        </button>
       </div>
+      <div id="lastBackupInfo" class="text-xs text-gray-400"></div>
       <div class="space-y-2 pt-3 border-t border-gray-700">
         <textarea id="importText" rows="4" placeholder="JSON貼り付け" class="w-full border p-3 text-xs focus:outline-none"></textarea>
         <button type="button" onclick="importFromJsonText()" class="w-full bg-gray-900 hover:bg-gray-700 text-gray-200 py-3 rounded-xl border border-gray-700 text-xs font-bold transition">
@@ -157,7 +155,7 @@ try { var _t = localStorage.getItem('iron_theme'); if (_t === 'ocean' || _t === 
         ヘルプ<span class="help-chev"></span>
       </button>
       <div id="helpBody" class="help-body hidden">
-        <div class="help-item"><div class="help-t">保存とバックアップ</div><div class="help-d">記録はブラウザ内に自動保存されます。ブラウザのキャッシュ削除や端末変更に備えて、JSON/TXT出力でバックアップを残してください。</div></div>
+        <div class="help-item"><div class="help-t">保存とバックアップ</div><div class="help-d">記録はブラウザ内に自動保存されます。ブラウザのキャッシュ削除や端末変更に備えて、JSON出力でバックアップを残してください。</div></div>
         <div class="help-item"><div class="help-t">入力・修正・削除</div><div class="help-d">種目や記録のタップから詳細や履歴を確認でき、入力途中の内容は画面を切り替えても残ります。記録の編集・削除は「編集・分析」のカレンダーで日付をタップして開く日付シートから行います（トレーニング履歴は閲覧専用です）。</div></div>
         <div class="help-item"><div class="help-t">回転メニューと有酸素</div><div class="help-d">Push / Pull / Legs / Other の回転メニューと有酸素記録を管理できます。メニューの編集は「編集・分析/設定」の「設定」タブから行えます。</div></div>
       <div class="help-item"><div class="help-t">編集・分析</div><div class="help-d">「編集・分析/設定」を開くと最初に「編集・分析」が表示され、カレンダーと分析カードを確認できます。分析カードは「週間分析」（月曜始まり）と「月間分析」を切り替えられ、トレ回数（日）・総負荷量・有酸素（合計時間・約kcal）を全部位と PUSH / PULL / LEGS / OTHER 別に集計し、前週・前月（有酸素は先週・先月）との差を「+1日」「-400kg」「+30分」の形で表示します。記録がない場合は「記録なし」と表示します。</div></div>
@@ -1101,40 +1099,36 @@ function exportData() {
   document.body.appendChild(a);
   a.click();
   a.remove();
+  try { localStorage.setItem('iron_last_backup', new Date().toISOString()); } catch (e) {}
+  paintLastBackup();
 }
 
-/* TXT出力：トレーニング記録（日付・部位・種目・セット）だけを読みやすく整形 */
-function buildTxtLog() {
-  const grouped = {};
-  workouts.forEach(item => {
-    if (!grouped[item.dateStr]) grouped[item.dateStr] = [];
-    grouped[item.dateStr].push(item);
-  });
-  const lines = [];
-  Object.keys(grouped).sort().forEach(dateStr => {
-    lines.push(dateStr + ' ' + pplOf(dateStr));
-    grouped[dateStr].forEach(item => {
-      lines.push(item.name);
-      item.setList.forEach((s, idx) => {
-        lines.push('  ' + (idx + 1) + '. ' + s.weight + 'kg × ' + s.reps + '回');
-      });
-    });
-    lines.push('');
-  });
-  return lines.join('\n');
-}
-function exportTxt() {
-  if (workouts.length === 0) {
-    alert('出力する記録がありません');
+/* 最終バックアップ日の表示（14日以上あいていたら警告色で知らせる） */
+function paintLastBackup() {
+  const el = document.getElementById('lastBackupInfo');
+  if (!el) return;
+  let iso = null;
+  try { iso = localStorage.getItem('iron_last_backup'); } catch (e) {}
+  if (!iso) {
+    el.textContent = '最終バックアップ：まだありません。記録を守るため、JSON出力をおすすめします。';
+    el.style.color = '#f87171';
     return;
   }
-  const dataStr = "data:text/plain;charset=utf-8," + encodeURIComponent('\uFEFF' + buildTxtLog());
-  const a = document.createElement('a');
-  a.href = dataStr;
-  a.download = `ppl_workout_log_${todayStr()}.txt`;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) {
+    el.textContent = '最終バックアップ：記録が読み取れませんでした。';
+    el.style.color = '#f87171';
+    return;
+  }
+  const days = Math.floor((Date.now() - d.getTime()) / 86400000);
+  const label = d.getFullYear() + '/' + (d.getMonth() + 1) + '/' + d.getDate();
+  if (days >= 14) {
+    el.textContent = '⚠ 最終バックアップ：' + label + '（' + days + '日前）。14日以上たっています。そろそろJSON出力をおすすめします。';
+    el.style.color = '#f87171';
+  } else {
+    el.textContent = '最終バックアップ：' + label + '（' + (days <= 0 ? '今日' : days + '日前') + '）';
+    el.style.color = '';
+  }
 }
 
 async function importFromJsonText() {
@@ -1218,6 +1212,7 @@ async function importFromJsonText() {
   alert('データを正常に復元しました！' + (skipped > 0 ? '（除外 ' + skipped + '件）' : ''), skipped > 0 ? 5000 : undefined);
   importEl.value = '';
 }
+paintLastBackup();
 /* 起動時の描画・タブ切り替えは extras.js（showTab → requestRender）が1回だけ行う */
 </script>
 <script src="extras.js?v=20"></script>
