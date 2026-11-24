@@ -721,9 +721,6 @@ body.np-open { padding-bottom: calc(var(--np-h, 226px) + var(--nav-h, 56px) + 16
 /* ================= 追加: 月間/設定タブの上サブタブ（月間/分析・設定）と分析カード =================
    サブタブはホームの部位選択（.hm-ord）をそのまま使い、見出し・数値・区切りは詳細ページの部品（.dt-sec / .dt-grid / .dt-cell / .dt-v / .dt-u / .gr-btn）を流用 */
 .an-tabs { margin-top: 0; } /* .hm-pad の中に置くので、.hm-ord の上の余白は不要 */
-.an-tabs button { white-space: nowrap; } /* 「週間分析 11/23〜11/29」を折り返さない（文字サイズは上タブと同じ） */
-.an-note { padding-top: 12px; }
-.an-modes { padding: 0 16px 4px; } /* 月間推移の切替ボタン（トレ回数／有酸素／総負荷量）は見出しの下に1行 */
 .an-rng { font-size: 11px; letter-spacing: 0.1em; color: var(--muted); }
 .an-hd, .an-part { display: grid; grid-template-columns: 52px 1fr 1fr; align-items: center; gap: 8px; padding: 10px 14px; border-top: 1px solid var(--line); }
 .an-hd { padding: 8px 14px; }
@@ -746,3 +743,12 @@ body.np-open { padding-bottom: calc(var(--np-h, 226px) + var(--nav-h, 56px) + 16
   .md-shine, .set-row.row-in, .hm-chev.hm-chev-open, .hm-chev.hm-chev-close { animation: none; }
   input.border, textarea.border, .me-add input, #cardioMinutes { transition: none; }
 }
+
+/* ホームの過去記録（詳細と同じ部品・色のまま、行に収まるよう少し小さく） */
+.hm-past { margin-top: 10px; }
+.hm-past .dt-day:first-child { border-top: none; }
+.hm-past .dt-dh { padding: 9px 2px; }
+.hm-past .dt-dd { font-size: 14px; }
+.hm-past .dt-sum { font-size: 13px; }
+.hm-past .dt-sets { padding: 0 2px 10px; }
+.hm-past .dt-set { font-size: 13px; line-height: 1.6; }
