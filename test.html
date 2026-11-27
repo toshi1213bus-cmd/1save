@@ -1,1 +1,401 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PPL 自己診断</title>
+<style>
+  body { background: #0a0a0b; color: #ece8dd; font-family: sans-serif; margin: 0; padding: 20px 16px 40px; }
+  h1 { font-size: 18px; margin: 0 0 4px; color: #dcc28a; }
+  .sub { font-size: 12px; color: #b8b2a2; margin-bottom: 16px; line-height: 1.7; }
+  #summary { font-size: 15px; font-weight: bold; margin: 12px 0; }
+  .row { display: flex; gap: 8px; align-items: baseline; padding: 7px 0; border-bottom: 1px solid #2a2a2e; font-size: 13px; }
+  .ok { color: #7bc47f; font-weight: bold; }
+  .ng { color: #e89a95; font-weight: bold; }
+  .note { color: #b8b2a2; font-size: 11px; }
+  button { margin-top: 18px; padding: 10px 18px; background: none; border: 1px solid #8a6d3b; border-radius: 3px; color: #dcc28a; font-size: 13px; cursor: pointer; }
+</style>
+</head>
+<body>
+<h1>PPL 自己診断</h1>
+<div class="sub">
+  アプリ本体の計算・集計・保存まわりが壊れていないかを、テスト用データで自動チェックします。<br>
+  実データはテスト前に自動で退避し、終わったら元に戻します。<b>テスト中はこのページを閉じないでください。</b><br>
+  <span id="ver"></span>
+</div>
+<div id="summary">診断中…</div>
+<div id="list"></div>
+<button type="button" onclick="location.reload()">もう一度診断する</button>
 
+<iframe id="app" style="position:absolute;left:-9999px;top:0;width:380px;height:700px;border:0" aria-hidden="true"></iframe>
+
+<script>
+function iso(off) {
+  const d = new Date(); d.setDate(d.getDate() + off);
+  const p = n => String(n).padStart(2, '0');
+  return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
+}
+function dumpStorage() {
+  const o = {};
+  for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); o[k] = localStorage.getItem(k); }
+  return o;
+}
+function restoreStorage(o) {
+  localStorage.clear();
+  Object.keys(o).forEach(k => localStorage.setItem(k, o[k]));
+}
+/* 安全装置：診断中は実データを触るため、開始前に「退避コピー」を別のキーに置く。
+   正常に終われば自動で消える。途中で止まった（アプリが落ちた等）場合は、次に開いたとき復旧を案内する */
+const GUARD_KEY = 'iron_test_guard';
+function showRecovery(raw) {
+  let ts = '';
+  try { ts = JSON.parse(raw).ts || ''; } catch (e) {}
+  document.getElementById('summary').textContent = '前回の診断が途中で止まった可能性があります';
+  document.getElementById('list').innerHTML =
+    '<div class="sub">診断前の実データの退避コピー（' + (ts ? ts.replace('T', ' ').slice(0, 16) : '日時不明') + '）が残っています。<br>' +
+    '「元に戻す」を押すと、診断前の状態へ戻します（診断中に変わった記録は戻る前の状態になります）。<br>' +
+    '記録が正常に見えている場合は「破棄」で退避コピーだけ消せます。</div>' +
+    '<button type="button" id="gRestore">元に戻す</button> <button type="button" id="gDiscard">破棄</button>';
+  document.getElementById('gRestore').onclick = function () {
+    try {
+      const saved = JSON.parse(raw).data;
+      restoreStorage(saved);
+      localStorage.removeItem(GUARD_KEY);
+      location.reload();
+    } catch (e) { alert('元に戻せませんでした：' + e.message); }
+  };
+  document.getElementById('gDiscard').onclick = function () {
+    localStorage.removeItem(GUARD_KEY);
+    location.reload();
+  };
+}
+async function main() {
+  const frame = document.getElementById('app');
+  /* 前回の診断が途中で止まっていないか確認（アプリを読み込む前に行う） */
+  let leftover = null;
+  try { leftover = localStorage.getItem(GUARD_KEY); } catch (e) {}
+  if (leftover) { showRecovery(leftover); return; }
+  frame.src = 'index.html';
+  let W = null;
+  for (let i = 0; i < 50; i++) {
+    try { if (frame.contentWindow && frame.contentWindow.PPLTest) { W = frame.contentWindow; break; } } catch (e) {}
+    await new Promise(r => setTimeout(r, 100));
+  }
+  if (!W) {
+    document.getElementById('summary').textContent = 'アプリのテスト窓口が見つかりませんでした。extras.js が最新版か確認してください。';
+    return;
+  }
+  const T = W.PPLTest;
+  document.getElementById('ver').textContent = '対象: ' + T.version;
+  const eq = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+  const tests = [];
+  const test = (name, fn) => tests.push({ name: name, fn: fn });
+
+  /* テスト用データ（今日を基準にした4週間分） */
+  const fx = {
+    workouts: [
+      { id: 'a1', name: 'ベンチプレス', dateStr: iso(-21), setList: [{ weight: 60, reps: 10 }] },
+      { id: 'a2', name: 'ベンチプレス', dateStr: iso(-14), setList: [{ weight: 65, reps: 10 }] },
+      { id: 'a3', name: 'ベンチプレス', dateStr: iso(-7), setList: [{ weight: 70, reps: 10 }] },
+      { id: 'a4', name: 'ベンチプレス', dateStr: iso(0), setList: [{ weight: 70, reps: 10 }] },
+      { id: 'b1', name: 'スクワット', dateStr: iso(-7), setList: [{ weight: 100, reps: 5 }] },
+      { id: 'b2', name: 'スクワット', dateStr: iso(0), setList: [{ weight: 100, reps: 5 }] }
+    ],
+    cardios: [
+      { id: 'c1', minutes: 30, dateStr: iso(-7) },
+      { id: 'c2', minutes: 20, dateStr: iso(0) }
+    ],
+    dayPplMap: { },
+    goalsData: { 'ベンチプレス': 80 }
+  };
+  fx.dayPplMap[iso(-21)] = 'PUSH'; fx.dayPplMap[iso(-14)] = 'PUSH';
+  fx.dayPplMap[iso(-7)] = 'LEGS'; fx.dayPplMap[iso(0)] = 'PUSH';
+
+  test('日付の変換', () => T.dstr(new Date()) === iso(0) && typeof T.fmtD(iso(0)) === 'string' && T.fmtD(iso(0)).length > 0);
+  test('最大重量の取得', () => T.maxWeightOf('ベンチプレス') === 70);
+  test('種目の推移データ', () => { const s = T.seriesAll('ベンチプレス'); return s.length === 4 && s[0].d === iso(-21) && s[3].d === iso(0); });
+  test('トレンド判定（上昇）', () => T.trendOf([1, 2, 3, 4]).txt === '絶好調！！');
+  test('トレンド判定（停滞）', () => T.trendOf([5, 5, 5, 5]).txt === 'プラトー検知！！' && T.trendOf([1]) === null);
+  test('総負荷の集計', () => T.volByDay()[iso(0)] === 1200);
+  test('期間集計（今日）', () => { const r = T.trainIn(T.volByDay(), ds => ds === iso(0)); return r.days === 1 && r.vol === 1200; });
+  test('有酸素の集計', () => { const r = T.cardioIn(() => true); return r.min === 50 && r.kcal === 175; });
+  test('プロフィール計算', () => { const p = T.profileStats(); return p.days === 4 && p.vol === 3650 && p.prTotal === 2 && p.xp === 541 && p.lv === 1 && p.title === '駆け出し'; });
+  test('実績メダルの進捗', () => {
+    const a = T.achievements();
+    const first = a.find(c => c.label === '継続').items.find(i => i.name === '通算10日');
+    const pr = a.find(c => c.label === '成長').items.find(i => i.name === 'PR更新10回');
+    const hi = a.find(c => c.label === 'HIIT');
+    return a.length === 4 && first.got === null && first.prog === 'あと6日' && pr.prog === 'あと8回' && !!hi && hi.items.length === 4;
+  });
+  test('PR実績の達成日（複数種目）', () => {
+    /* 2種目のPRが日付で入り混じるデータ。PRは 種目A: -25,-20,-15,-10,-5 / 種目B: -28,-27,-26,-24,-23 に発生し、
+       時系列では10回目が -5日。種目ごとに集めた順で数えると達成日が -23日 にズレる（過去の不具合） */
+    const mk = (id, name, off, w) => ({ id: id, name: name, dateStr: iso(off), setList: [{ weight: w, reps: 10 }] });
+    T.swap({
+      workouts: [
+        mk('p1', '種目A', -30, 60), mk('p2', '種目B', -29, 60),
+        mk('p3', '種目B', -28, 65), mk('p4', '種目B', -27, 70), mk('p5', '種目B', -26, 75),
+        mk('p6', '種目A', -25, 65), mk('p7', '種目B', -24, 80), mk('p8', '種目B', -23, 85),
+        mk('p9', '種目A', -20, 70), mk('p10', '種目A', -15, 75), mk('p11', '種目A', -10, 80),
+        mk('p12', '種目A', -5, 85)
+      ],
+      cardios: [], dayPplMap: {}, goalsData: {}
+    });
+    const a = T.achievements();
+    const pr = a.find(c => c.label === '成長').items.find(i => i.name === 'PR更新10回');
+    T.swap(fx); /* 後続の確認のために標準データへ戻す */
+    return pr.got === iso(-5);
+  });
+  test('目標データの検証', () => eq(T.sanitizeGoals({ 'ベンチプレス': 80.04, 'bad': -5, 'heavy': 2000, '': 50 }), { 'ベンチプレス': 80 }));
+  test('バックアップ出力', async () => {
+    /* 実際の保存（共有シート・ダウンロード）は呼ばず、書き出される中身とファイル名だけを確認する */
+    let saved = null;
+    const origSave = W.saveBackupFile;
+    W.saveBackupFile = function (name, json) { saved = { name: name, json: json }; return Promise.resolve(true); };
+    try { await W.exportData(); } finally { W.saveBackupFile = origSave; }
+    if (!saved || !/^ppl_workout_backup_\d{4}-\d{2}-\d{2}\.json$/.test(saved.name)) return false;
+    const parsed = JSON.parse(saved.json);
+    return parsed.workouts.length === 6 && eq(parsed.goals, { 'ベンチプレス': 80 });
+  });
+  test('バックアップ出力（取りやめ時は最終バックアップ日を更新しない）', async () => {
+    localStorage.removeItem('iron_last_backup');
+    const origSave = W.saveBackupFile;
+    W.saveBackupFile = function () { return Promise.resolve(false); };
+    try { await W.exportData(); } finally { W.saveBackupFile = origSave; }
+    return localStorage.getItem('iron_last_backup') === null;
+  });
+  test('バックアップのファイル保存（通常ダウンロード）', async () => {
+    /* 共有シートを使わない経路で、ダウンロード用リンクが作られて押されることを確認 */
+    const origClick = W.HTMLAnchorElement.prototype.click;
+    let href = null, dl = null;
+    W.HTMLAnchorElement.prototype.click = function () { href = this.href; dl = this.download; };
+    const origShare = W.navigator.share;
+    try { Object.defineProperty(W.navigator, 'share', { value: undefined, configurable: true }); } catch (e) {}
+    let ok;
+    try { ok = await W.saveBackupFile('t.json', '{"a":1}'); }
+    finally {
+      W.HTMLAnchorElement.prototype.click = origClick;
+      try { delete W.navigator.share; } catch (e) {}
+    }
+    return ok === true && typeof href === 'string' && href.indexOf('blob:') === 0 && dl === 't.json';
+  });
+  test('スナップショット作成', () => {
+    localStorage.removeItem('simple_snapshots');
+    T.ensureDailySnapshot();
+    const s = T.loadSnaps();
+    if (!(s.length === 1 && s[0].date === iso(0) && s[0].data.workouts.length === 6)) return false;
+    T.ensureDailySnapshot();
+    return T.loadSnaps().length === 1;
+  });
+  test('PR判定（更新あり）', () => {
+    const snap = W.prSnap('スクワット', iso(0));
+    fx.workouts.find(w => w.id === 'b2').setList.push({ weight: 110, reps: 5 });
+    return W.prCheck(snap) === true;
+  });
+  test('PR判定（更新なし）', () => {
+    const snap = W.prSnap('ベンチプレス', iso(0));
+    return W.prCheck(snap) === false;
+  });
+  test('記録データの検証（筋トレ）', () => {
+    const stat = { skipped: 0 };
+    const out = T.sanitizeWorkouts([
+      { id: 'v1', name: 'ベンチプレス', dateStr: iso(-1), setList: [{ weight: 50, reps: 10 }] },
+      { id: 'x1', name: 'ベンチ', dateStr: '2026-02-30', setList: [{ weight: 50, reps: 10 }] },
+      { id: 'x2', name: 'ベンチ', dateStr: iso(-1), setList: [{ weight: -5, reps: 10 }] },
+      { id: 'v2', name: '', dateStr: iso(-1), setList: [{ weight: 20, reps: 5 }] }
+    ], stat);
+    return out.length === 2 && stat.skipped === 2 && out[1].name === '不明な種目';
+  });
+  test('記録データの検証（有酸素）', () => {
+    const stat = { skipped: 0 };
+    const out = T.sanitizeCardios([
+      { id: 'c1', minutes: 30, dateStr: iso(-1) },
+      { id: 'c2', minutes: 25, dateStr: '2026-02-30' }
+    ], stat);
+    return out.length === 1 && out[0].minutes === 30 && stat.skipped === 1;
+  });
+  test('HIIT実施日の検証', () => eq(T.sanitizeHiitDays(['2026-11-27', { d: '2026-11-26', name: 'タバタ' }, '2026-02-30', { d: '2026-11-27', name: 'ハード' }, 20261127]),
+    [{ d: '2026-11-26', name: 'タバタ' }, { d: '2026-11-27', name: '' }, { d: '2026-11-27', name: 'ハード' }]));
+  test('HIIT設定の検証', () => eq(T.sanitizeHiitDays([{ d: '2026-11-27', name: 'タバタ', w: 20, r: 10, n: 8 }, { d: '2026-11-27', name: '変', w: 0, r: 10, n: 8 }, { d: '2026-11-26', name: '休0', w: 30, r: 0, n: 6 }]),
+    [{ d: '2026-11-26', name: '休0', w: 30, r: 0, n: 6 }, { d: '2026-11-27', name: 'タバタ', w: 20, r: 10, n: 8 }, { d: '2026-11-27', name: '変' }]));
+  test('HIITセット時間の計算', () => eq([T.hiitSeconds({ w: 20, r: 10, n: 8 }), T.hiitSeconds({ w: 30, r: 15, n: 10 }), T.hiitSeconds({ name: 'タバタ' })], [230, 435, null]));
+  test('曜日タイプの検証', () => eq(T.sanitizeDayPpl({ '2026-01-05': 'PUSH', '2026-02-30': 'PULL', '2026-01-06': 'XXX' }), { '2026-01-05': 'PUSH' }));
+  test('種目の統合', () => {
+    T.swap({
+      workouts: [
+        { id: 'r1', name: 'ワイドラットプル', dateStr: iso(-7), setList: [{ weight: 50, reps: 10 }] },
+        { id: 'r2', name: 'ワイドラットプル', dateStr: iso(0), setList: [{ weight: 55, reps: 10 }] },
+        { id: 'r3', name: 'パラレルラット', dateStr: iso(0), setList: [{ weight: 60, reps: 10 }] }
+      ],
+      cardios: [], dayPplMap: {}, goalsData: { 'ワイドラットプル': 60, 'パラレルラット': 70 }
+    });
+    T.applyRename('ワイドラットプル', 'パラレルラット', ['ワイドラットプル']);
+    const d = T.data();
+    return d.workouts.length === 3 && d.workouts.every(w => w.name === 'パラレルラット') && eq(d.goalsData, { 'パラレルラット': 70 });
+  });
+  test('種目の名前変更', () => {
+    T.applyRename('パラレルラット', 'ラットプル', ['パラレルラット']);
+    const d = T.data();
+    return d.workouts.every(w => w.name === 'ラットプル') && eq(d.goalsData, { 'ラットプル': 70 });
+  });
+  test('スナップショットから復元', async () => {
+    T.swap({
+      workouts: [{ id: 's1', name: 'デッドリフト', dateStr: iso(-3), setList: [{ weight: 100, reps: 5 }] }],
+      cardios: [], dayPplMap: {}, goalsData: {}
+    });
+    localStorage.removeItem('simple_snapshots');
+    T.ensureDailySnapshot();
+    T.swap({
+      workouts: [{ id: 's2', name: 'ベンチプレス', dateStr: iso(0), setList: [{ weight: 40, reps: 10 }] }],
+      cardios: [], dayPplMap: {}, goalsData: {}
+    });
+    const origAsk = W.askConfirm;
+    W.askConfirm = () => Promise.resolve(true);
+    try { await W.restoreSnapshot(iso(0)); } finally { W.askConfirm = origAsk; }
+    const d = T.data();
+    return d.workouts.length === 1 && d.workouts[0].name === 'デッドリフト' && d.workouts[0].setList[0].weight === 100;
+  });
+
+  test('身体計算', () => {
+    T.swap({ workouts: [], cardios: [], dayPplMap: {}, goalsData: {},
+      bodyData: { heightCm: 170, age: 30, sex: 'm', goal: 'cut', life: 'mid' },
+      weightData: [{ d: iso(0), kg: 70 }] });
+    const c = T.bodyCalc();
+    return !!c && c.maint === 2220 && c.kcal === 1820 && c.pG === 140 && c.fG === 51 && c.cG === 200 && c.bmi === 24.2;
+  });
+  test('週平均体重', () => {
+    T.swap({ workouts: [], cardios: [], dayPplMap: {}, goalsData: {}, bodyData: {},
+      weightData: [{ d: iso(-10), kg: 80 }, { d: iso(-6), kg: 72 }, { d: iso(-3), kg: 71 }, { d: iso(0), kg: 70 }] });
+    return T.weeklyAvgWeight() === 71;
+  });
+  test('体重データの検証', () => {
+    const out = T.sanitizeWeightLog([
+      { d: iso(-1), kg: 70.04 }, { d: '2026-02-30', kg: 70 }, { d: iso(-2), kg: 500 }, { d: iso(-1), kg: 71 }
+    ]);
+    return out.length === 1 && out[0].d === iso(-1) && out[0].kg === 71;
+  });
+  test('身体設定の検証', () => eq(T.sanitizeBody({ heightCm: 170.4, age: 30, sex: 'x', goal: 'cut', life: 'mid', targetKg: 65.54, kcalManual: 100 }),
+    { heightCm: 170, age: 30, goal: 'cut', life: 'mid', targetKg: 65.5 }));
+
+  test('自動補正の計算', () => {
+    T.swap({ workouts: [], cardios: [], dayPplMap: {}, goalsData: {},
+      bodyData: { heightCm: 170, age: 30, sex: 'm', goal: 'cut', life: 'mid' },
+      weightData: [{ d: iso(-15), kg: 72 }, { d: iso(-8), kg: 72 }, { d: iso(-1), kg: 72 }] });
+    const r = T.bodyAdjustCalc();
+    if (!r || r.step !== -150) return false;
+    T.swap({ workouts: [], cardios: [], dayPplMap: {}, goalsData: {},
+      bodyData: { heightCm: 170, age: 30, sex: 'm', goal: 'recomp', life: 'mid' },
+      weightData: [{ d: iso(-15), kg: 72 }, { d: iso(-8), kg: 72 }, { d: iso(-1), kg: 72 }] });
+    const r2 = T.bodyAdjustCalc();
+    return !!r2 && r2.step === 0;
+  });
+  test('AI分析の身体セクション', () => {
+    T.swap({ workouts: fx.workouts, cardios: fx.cardios, dayPplMap: fx.dayPplMap, goalsData: fx.goalsData,
+      bodyData: { heightCm: 170, age: 30, sex: 'm', goal: 'cut', life: 'mid', targetKg: 65 },
+      weightData: [{ d: iso(-8), kg: 71 }, { d: iso(-1), kg: 70 }, { d: iso(0), kg: 70 }] });
+    const secs = T.aiReport();
+    const body = secs.find(s => s.t === '身体・栄養');
+    return !!body && body.lines.length >= 3;
+  });
+  test('身体データなしでも分析が落ちない', () => {
+    T.swap({ workouts: [], cardios: [], dayPplMap: {}, goalsData: {}, bodyData: {}, weightData: [] });
+    const secs = T.aiReport();
+    return Array.isArray(secs) && !secs.some(s => s.t === '身体・栄養');
+  });
+  test('分析の信頼度', () => {
+    T.swap({ workouts: fx.workouts, cardios: fx.cardios, dayPplMap: fx.dayPplMap, goalsData: fx.goalsData, bodyData: {}, weightData: [] });
+    const c = T.aiConfidence();
+    return !!c && c.days === 4 && c.lv === '低';
+  });
+  test('ゴリラの一言', () => {
+    T.swap({ workouts: fx.workouts, cardios: fx.cardios, dayPplMap: fx.dayPplMap, goalsData: fx.goalsData, bodyData: {}, weightData: [] });
+    const w1 = T.gorillaWord(), w2 = T.gorillaWord();
+    return typeof w1 === 'string' && w1.length > 0 && w1 === w2;
+  });
+  test('停滞の検出', () => {
+    const mk = (id, off, w, r) => ({ id: id, name: 'ベンチプレス', dateStr: iso(off), setList: [{ weight: w, reps: r }] });
+    T.swap({ workouts: [mk('s1', -14, 60, 10), mk('s2', -7, 60, 10), mk('s3', -1, 60, 10)], cardios: [], dayPplMap: {}, goalsData: {} });
+    const pl = T.plateauEx();
+    const hit = !!pl && pl.name === 'ベンチプレス' && pl.mw === 60 && pl.rp === 10;
+    T.swap({ workouts: [mk('s1', -14, 60, 10), mk('s2', -7, 62.5, 10), mk('s3', -1, 60, 10)], cardios: [], dayPplMap: {}, goalsData: {} });
+    const miss = T.plateauEx() === null;
+    T.swap(fx);
+    return hit && miss;
+  });
+  test('ゴリラ換算', () => {
+    return T.gorillaHeads(16000) === 100 && T.gorillaHeads(39762) === 249 && T.gorillaHeads(0) === 0;
+  });
+  test('バックアップ項目の一致', () => {
+    if (typeof T.buildBackupData !== 'function' || typeof T.snapData !== 'function') return false;
+    const a = Object.keys(T.buildBackupData()).sort().join(',');
+    const b = Object.keys(T.snapData()).sort().join(',');
+    return a === b && a.split(',').length >= 9;
+  });
+  test('調子判定の文言', () => {
+    return T.trendWord(null) === '最初の一歩だ！'
+      && T.trendWord({ cls: 'hot', txt: '絶好調！！' }) === '最高潮だ！'
+      && T.trendWord({ cls: 'plat', txt: 'プラトー検知！！' }) === '限界突破だ！'
+      && T.trendWord({ cls: 'down', txt: '下降傾向' }) === '這い上がれ！';
+  });
+
+  test('保存失敗時の巻き戻し（transact）', () => {
+    /* 保存領域への書き込みをわざと失敗させ、メモリも保存領域も変更前のままか確認する */
+    const beforeMem = JSON.stringify(T.data().workouts);
+    const beforeRaw = localStorage.getItem('simple_workouts');
+    const proto = W.Storage.prototype;
+    const origSet = proto.setItem, origAlert = W.alert;
+    let alerted = 0, ok = null;
+    proto.setItem = function () { throw new Error('quota'); };
+    W.alert = function () { alerted++; };
+    try {
+      ok = W.transact(['workouts'], () => {
+        T.data().workouts.push({ id: 'zz9', name: '巻き戻しテスト', dateStr: iso(0), setList: [{ weight: 1, reps: 1 }] });
+      });
+    } finally { proto.setItem = origSet; W.alert = origAlert; }
+    return ok === false && alerted === 1 &&
+      JSON.stringify(T.data().workouts) === beforeMem &&
+      localStorage.getItem('simple_workouts') === beforeRaw;
+  });
+  test('保存成功時は保存される（transact）', () => {
+    const n = T.data().workouts.length;
+    const ok = W.transact(['workouts'], () => {
+      T.data().workouts.push({ id: 'zz8', name: '保存テスト', dateStr: iso(0), setList: [{ weight: 1, reps: 1 }] });
+    });
+    const saved = JSON.parse(localStorage.getItem('simple_workouts') || '[]');
+    return ok === true && T.data().workouts.length === n + 1 && saved.some(w => w.id === 'zz8');
+  });
+
+  test('容量警告の判定', () => T.usageWarn(5 * 1024 * 1024 * 0.8) === true && T.usageWarn(1024) === false && T.KCAL_PER_MIN === 3.5);
+
+  const backup = dumpStorage();
+  /* 安全装置：実データの退避コピーを保存。書けなかった場合は、実データを触らずに診断を中止する */
+  try {
+    localStorage.setItem(GUARD_KEY, JSON.stringify({ ts: new Date().toISOString(), data: backup }));
+  } catch (e) {
+    document.getElementById('summary').textContent = '保存容量に余裕がないため、安全のため診断を中止しました（実データは変更していません）。';
+    return;
+  }
+  const keep = T.swap(fx);
+  const results = [];
+  try {
+    for (const t of tests) {
+      try { results.push({ name: t.name, ok: (await t.fn()) === true, note: '' }); }
+      catch (e) { results.push({ name: t.name, ok: false, note: String((e && e.message) || e) }); }
+    }
+  } finally {
+    T.restore(keep);
+    restoreStorage(backup);
+    try { localStorage.removeItem(GUARD_KEY); } catch (e) {} /* 正常終了：退避コピーを消す */
+  }
+
+  const pass = results.filter(r => r.ok).length;
+  document.getElementById('summary').textContent =
+    pass === results.length ? 'すべて正常です（' + pass + '/' + results.length + '）' : '異常があります（' + pass + '/' + results.length + ' 合格）';
+  document.getElementById('list').innerHTML = results.map(r =>
+    '<div class="row"><span class="' + (r.ok ? 'ok' : 'ng') + '">' + (r.ok ? '○' : '×') + '</span><span>' + r.name + '</span>' +
+    (r.note ? '<span class="note">' + r.note + '</span>' : '') + '</div>').join('');
+}
+main();
+</script>
+</body>
+</html>
